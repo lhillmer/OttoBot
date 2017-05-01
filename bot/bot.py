@@ -19,11 +19,11 @@ else:
 	ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-	def __init__(self, token, commands, *args, **kwargs):
+	def __init__(self, token, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.ping_task = None
 		self.token = token
-		self.chat_parser = ChatParser(commands)
+		self.chat_parser = ChatParser()
 	
 	def log_exception(self, e, error_msg):
 		error_reason = type(e).__name
@@ -56,7 +56,7 @@ class DiscordWrapper(discord.Client):
 		if not self.is_logged_in:
 			return
 		try:
-			if not message.channel.permissions_for(self.user).send_messages():
+			if message.server and not message.channel.permissions_for(message.server.me).send_messages:
 				return
 		except Exception as e:
 			_logger.error("Failed to get permissions for bot user. Assuming the bot has permissions")

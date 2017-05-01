@@ -7,9 +7,14 @@ import logging
 import signal
 import argparse
 import functools
+import sys
 
 logging.basicConfig(filename='example.log',level=logging.INFO)
+stdout = logging.StreamHandler(sys.stdout)
+stdout.setLevel(logging.INFO)
+stdout.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: [%(name)s] %(message)s'))
 _logger = logging.getLogger()
+_logger.addHandler(stdout)
 
 """what's the difference between these two?"""
 if hasattr(asyncio, "async"):
@@ -21,20 +26,7 @@ class OttoBot:
 	
 	def __init__(self, token):
 		
-		"""for now, curating the commands, because it's easier that way"""
-		
-		commands = [
-			Command(CommandType.STARTS_WITH,
-					"!hi",
-					["Hello, I am OttoBot"],
-					[]),
-			Command(CommandType.CONTAINS,
-					"Otto",
-					["Did you mean me?", "No, you probably wanted OttoTonsorialist", "It's ok, I'll go"],
-					[])
-		]
-		
-		self.discord = DiscordWrapper(token, commands)
+		self.discord = DiscordWrapper(token)
 		self.discord_task = None
 		self.loop = asyncio.get_event_loop()
 		self.shutdown_error = False
