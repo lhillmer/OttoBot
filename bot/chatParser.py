@@ -35,7 +35,7 @@ class ChatParser():
 				_logger.info("Matched %s to command %s", message.content, c.to_match)
 				for r in c.responses:
 					if isinstance(r, int):
-						await actions[r](message)
+						return actions[r](message)
 					else:
-						await r
+						return r
 				

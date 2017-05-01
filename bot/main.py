@@ -60,7 +60,6 @@ class OttoBot:
 			except NotImplementedError:
 				pass
 		
-		self.discord.start()
 		self.discord_task = ensure_future(self.discord.start())
 		
 		try:

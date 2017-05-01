@@ -64,7 +64,7 @@ class DiscordWrapper(discord.Client):
 		if isinstance(message.author, discord.Member) and self.user != message.author:
 			_logger.info("Received message: %s", message.content)
 			reply = await self.chat_parser.get_replies(message)
-			await self.send_message(reply)
+			await self.send_message(message.channel, reply)
 
 	
 	"""this will probably make sense once I understand ensure_future and start_ping"""
