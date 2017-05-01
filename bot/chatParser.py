@@ -30,12 +30,12 @@ class ChatParser():
 	async def get_replies(self, message):
 		"""this yields strings until it has completed its reply"""
 		
-		for c in self.commands:
-			if c.does_match(message.content):
-				_logger.info("Matched %s to command %s", message.content, c.to_match)
-				for r in c.responses:
-					if isinstance(r, int):
-						return actions[r](message)
+		for cmd in self.commands:
+			if cmd.does_match(message.content):
+				_logger.info("Matched %s to command %s", message.content, cmd.to_match)
+				for response in cmd.responses:
+					if isinstance(response, int):
+						yield actions[response](message)
 					else:
-						return r
+						yield response
 				
