@@ -81,6 +81,21 @@ def getCrawlLink(message):
 	
 	return result
 
+def getCrawlDumpLink(message):
+	split = message.content.split(" ")
+	result = None
+	players = {
+			"BackslashEcho": "http://crawl.akrasiac.org/rawdata/BackslashEcho/BackslashEcho.txt",
+			"OttoTonsorialist": "http://crawl.akrasiac.org/rawdata/gimp/gimp.txt",
+			"Tab": "http://crawl.akrasiac.org/rawdata/tab/tab.txt"
+		}
+	if len(split) == 1:
+		result = "You can't watch no one!"
+	else:
+		result = players.get(split[1], "{}?? That person doesn't even play crawl!".format(split[1]))
+	
+	return result
+
 """for now, curating the commands, because it's easier that way"""
 
 commands = [
@@ -108,5 +123,10 @@ commands = [
 			False,
 			"$rollout",
 			["Fuck you"],
-			[])
+			[]),
+	Command(CommandType.STARTS_WITH,
+			False,
+			"$dumpLink",
+			[0],
+			[getCrawlDumpLink])
 ]
