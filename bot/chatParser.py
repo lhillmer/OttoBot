@@ -1,3 +1,5 @@
+import webWrapper
+
 import logging
 from enum import Enum
 
@@ -69,30 +71,26 @@ def add(message):
 def getCrawlLink(message):
 	split = message.content.split(" ")
 	result = None
-	players = {
-			"BackslashEcho": "http://crawl.akrasiac.org:8080/#watch-BackslashEcho",
-			"OttoTonsorialist": "http://crawl.akrasiac.org:8080/#watch-gimp",
-			"Tab": "http://crawl.akrasiac.org:8080/#watch-tab"
-		}
 	if len(split) == 1:
 		result = "You can't watch no one!"
 	else:
-		result = players.get(split[1], "{}?? That person doesn't even play crawl!".format(split[1]))
+		if webWrapper.doesCrawlUserExist(split[1]):
+			result = "http://crawl.akrasiac.org:8080/#watch-" + split[1]
+		else:
+			result = split[1] + "?? That person doesn't even play crawl!"
 	
 	return result
 
 def getCrawlDumpLink(message):
 	split = message.content.split(" ")
 	result = None
-	players = {
-			"BackslashEcho": "http://crawl.akrasiac.org/rawdata/BackslashEcho/BackslashEcho.txt",
-			"OttoTonsorialist": "http://crawl.akrasiac.org/rawdata/gimp/gimp.txt",
-			"Tab": "http://crawl.akrasiac.org/rawdata/tab/tab.txt"
-		}
 	if len(split) == 1:
 		result = "You can't watch no one!"
 	else:
-		result = players.get(split[1], "{}?? That person doesn't even play crawl!".format(split[1]))
+		if webWrapper.doesCrawlUserExist(split[1]):
+			result = "http://crawl.akrasiac.org/rawdata{}/{}.txt".format(split[1], split[1])
+		else:
+			result = split[1] + "?? That person doesn't even play crawl!"
 	
 	return result
 
@@ -103,11 +101,6 @@ commands = [
 			False,
 			"$hi",
 			["Hello, I am OttoBot"],
-			[]),
-	Command(CommandType.CONTAINS,
-			True,
-			"Otto",
-			["Did you mean me?", "No, you probably wanted OttoTonsorialist", "It's ok, I'll go"],
 			[]),
 	Command(CommandType.STARTS_WITH,
 			False,
