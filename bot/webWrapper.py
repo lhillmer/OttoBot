@@ -54,7 +54,11 @@ class WebWrapper():
 	'''this code might be totally awful. I still don't fully understand async shenanigans'''
 	'''ideally this should be a non-blocking http request. I doubt it's actually set up properly to exhibit that behavior right now though'''
 	async def doesCrawlUserExist(self, username):
-		_logger.info("checking existence of crawl user: " + username)
-		response = await self.queueRequest(self.crawlServer + '/rawdata/' + username + '/', 5)
-		_logger.info("received response when checking for crawl user: " + username)
-		return response.status == 200
+		try:
+			_logger.info("checking existence of crawl user: " + username)
+			response = await self.queueRequest(self.crawlServer + '/rawdata/' + username + '/', 5)
+			_logger.info("received response when checking for crawl user: " + username)
+			return response.status == 200
+		except asyncio.TimeoutError:
+			_logger.info("request for crawl user " + username + " timed out. Assuming they don't exist")
+			return False
