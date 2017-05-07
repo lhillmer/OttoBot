@@ -5,7 +5,7 @@ import discord
 import asyncio
 import logging
 
-"""i'm copying a ton of code fomr here:
+"""i'm copying a ton of code from here:
 	https://github.com/gammafunk/Cerebot/blob/master/cerebot/discord.py
 	i totally don't understand most of it
 """
@@ -19,11 +19,12 @@ else:
 	ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-	def __init__(self, token, *args, **kwargs):
+	def __init__(self, token, webWrapper, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.ping_task = None
 		self.token = token
 		self.chat_parser = ChatParser()
+		self.webWrapper = webWrapper
 	
 	def log_exception(self, e, error_msg):
 		error_reason = type(e).__name
@@ -52,9 +53,6 @@ class DiscordWrapper(discord.Client):
 			
 	
 	async def on_message(self, message):
-		"""why is this here? can we actually receive a message while logged out?"""
-		if not self.is_logged_in:
-			return
 		try:
 			if message.server and not message.channel.permissions_for(message.server.me).send_messages:
 				return
@@ -63,7 +61,7 @@ class DiscordWrapper(discord.Client):
 			
 		if isinstance(message.author, discord.Member) and self.user != message.author:
 			_logger.info("Received message: %s", message.content)
-			async for reply in self.chat_parser.get_replies(message):
+			async for reply in self.chat_parser.get_replies(message, self.webWrapper):
 				_logger.info("received from yield %s", reply)
 				await self.send_message(message.channel, reply)
 

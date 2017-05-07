@@ -1,6 +1,5 @@
 from bot import DiscordWrapper
-from chatParser import Command
-from chatParser import CommandType
+from webWrapper import WebWrapper
 
 import asyncio
 import logging
@@ -25,10 +24,12 @@ else:
 class OttoBot:
 	
 	def __init__(self, token):
-		
-		self.discord = DiscordWrapper(token)
-		self.discord_task = None
+
 		self.loop = asyncio.get_event_loop()
+		self.web = WebWrapper(self.loop)
+		self.discord = DiscordWrapper(token, self.web)
+		self.discord_task = None
+		self.web_task = None
 		self.shutdown_error = False
 	
 	def start(self):
@@ -51,8 +52,9 @@ class OttoBot:
 				self.loop.add_signal_handler(getattr(signal, signame),functools.partial(begin_shutdown, signame))
 			except NotImplementedError:
 				pass
-		
+
 		self.discord_task = ensure_future(self.discord.start())
+		self.web_task = ensure_future(self.web.run())
 		
 		try:
 			self.loop.run_until_complete(self.process())
@@ -72,7 +74,7 @@ class OttoBot:
 	async def process(self):
 		
 		while True:
-			await self.discord_task
+			await asyncio.wait([self.web_task, self.discord_task], return_when=asyncio.FIRST_COMPLETED)
 
 def main():
 	parser = argparse.ArgumentParser()

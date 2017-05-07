@@ -39,7 +39,7 @@ class Command():
 
 class ChatParser():
 	
-	async def get_replies(self, message):
+	async def get_replies(self, message, web):
 		"""this yields strings until it has completed its reply"""
 		
 		for cmd in commands:
@@ -47,11 +47,12 @@ class ChatParser():
 				_logger.info("Matched %s to command %s", message.content, cmd.to_match)
 				for response in cmd.responses:
 					if isinstance(response, int):
-						yield cmd.actions[response](message)
+						yield await cmd.actions[response](message, web)
+
 					else:
 						yield response
 
-def add(message):
+async def add(message, web):
 	split = message.content.split(" ")
 	result = None
 	total = 0
@@ -68,27 +69,30 @@ def add(message):
 		result = "I know, the answer is {}!".format(str(total))
 	return result
 
-def getCrawlLink(message):
+async def getCrawlLink(message, web):
 	split = message.content.split(" ")
 	result = None
 	if len(split) == 1:
 		result = "You can't watch no one!"
 	else:
-		if webWrapper.doesCrawlUserExist(split[1]):
+		_logger.info("about to test for existence of crawl user: " + split[1])
+		exists = await web.doesCrawlUserExist(split[1])
+		_logger.info("crawl user " + split[1] + " exists: " + str(exists))
+		if exists:
 			result = "http://crawl.akrasiac.org:8080/#watch-" + split[1]
 		else:
 			result = split[1] + "?? That person doesn't even play crawl!"
 	
 	return result
 
-def getCrawlDumpLink(message):
+async def getCrawlDumpLink(message, web):
 	split = message.content.split(" ")
 	result = None
 	if len(split) == 1:
 		result = "You can't watch no one!"
 	else:
-		if webWrapper.doesCrawlUserExist(split[1]):
-			result = "http://crawl.akrasiac.org/rawdata{}/{}.txt".format(split[1], split[1])
+		if await web.doesCrawlUserExist(split[1]):
+			result = "http://crawl.akrasiac.org/rawdata/{}/{}.txt".format(split[1], split[1])
 		else:
 			result = split[1] + "?? That person doesn't even play crawl!"
 	
