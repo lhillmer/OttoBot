@@ -12,7 +12,7 @@ class CommandType(Enum):
 
 class Command():
 	"""This represents a command that the bot will respond to. Eventually, this should be able to hand further more complicated actions. For now, it just matches responses to """
-	def __init__(self, cmd_type, case_sensitive, to_match, responses, actions):
+	def __init__(self, cmd_type, case_sensitive, to_match, responses):
 		if not isinstance(cmd_type, CommandType):
 			raise TypeError("cmd_type must be an enum CommandType")
 		self.cmd_type = cmd_type
@@ -24,7 +24,6 @@ class Command():
 			self.to_match = to_match.upper()
 		
 		self.responses = responses
-		self.actions = actions
 	
 	def does_match(self, input):
 		if  not self.case_sensitive:
@@ -38,19 +37,28 @@ class Command():
 			return self.to_match == input
 
 class ChatParser():
+
+	def __init__(self, commands):
+		self.commands = commands
 	
 	async def get_replies(self, message, web):
 		"""this yields strings until it has completed its reply"""
 		
-		for cmd in commands:
+		for cmd in self.commands:
 			if cmd.does_match(message.content):
 				_logger.info("Matched %s to command %s", message.content, cmd.to_match)
 				for response in cmd.responses:
-					if isinstance(response, int):
-						yield await cmd.actions[response](message, web)
-
-					else:
+					if isinstance(response, str):
 						yield response
+					elif callable(response):
+						yield await response(message, web)
+					else:
+						raise TypeError("invalid value in responses: " + str(response))
+
+	def addCommand(self, cmd):
+		if not isinstance(cmd, Command):
+			raise TypeError("cmd must be a Command object")
+		self.commands.append(cmd)
 
 async def add(message, web):
 	split = message.content.split(" ")
@@ -104,26 +112,21 @@ commands = [
 	Command(CommandType.STARTS_WITH,
 			False,
 			"$hi",
-			["Hello, I am OttoBot"],
-			[]),
+			["Hello, I am OttoBot"]),
 	Command(CommandType.STARTS_WITH,
 			False,
 			"$add",
-			["I'm about to try and add some numbers",0, "That was fun!"],
-			[add]),
+			["I'm about to try and add some numbers",add, "That was fun!"]),
 	Command(CommandType.STARTS_WITH,
 			False,
 			"$watch",
-			[0],
 			[getCrawlLink]),
 	Command(CommandType.EQUALS,
 			False,
 			"$rollout",
-			["Fuck you"],
-			[]),
+			["Fuck you"]),
 	Command(CommandType.STARTS_WITH,
 			False,
 			"$dumpLink",
-			[0],
 			[getCrawlDumpLink])
 ]

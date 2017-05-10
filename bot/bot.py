@@ -1,4 +1,4 @@
-from chatParser import ChatParser
+import chatParser
 
 import discord
 
@@ -23,8 +23,33 @@ class DiscordWrapper(discord.Client):
 		super().__init__(*args, **kwargs)
 		self.ping_task = None
 		self.token = token
-		self.chat_parser = ChatParser()
+		self.chat_parser = chatParser.ChatParser(chatParser.commands)
 		self.webWrapper = webWrapper
+
+		#add discord-specific chat commands here
+		self.chat_parser.addCommand(
+			chatParser.Command(
+				chatParser.CommandType.EQUALS,
+				False,
+				"$clear",
+				[self.clearChat])
+			)
+
+	async def clearChat(self, message, web):
+		try:
+			if message.server and not message.channel.permissions_for(message.server.me).manage_messages:
+				return "OttoBot has insufficient permissions to clear this channel"
+		except Exception as e:
+			_logger.error("Failed to get permissions for clear command. Assuming bot does not have permissions")
+			return "OttoBot has insufficient permissions to clear this channel"
+
+		def is_not_pinned(m):
+			return not m.pinned
+
+		await self.purge_from(message.channel, check=is_not_pinned)
+
+		return "Fresh chat for ya!"
+
 	
 	def log_exception(self, e, error_msg):
 		error_reason = type(e).__name
@@ -62,8 +87,12 @@ class DiscordWrapper(discord.Client):
 		if isinstance(message.author, discord.Member) and self.user != message.author:
 			_logger.info("Received message: %s", message.content)
 			async for reply in self.chat_parser.get_replies(message, self.webWrapper):
-				_logger.info("received from yield %s", reply)
-				await self.send_message(message.channel, reply)
+				if not reply or len(reply) == 0:
+					_logger.info("received empty string from yield. continuing...")
+					continue
+				else:
+					_logger.info("received from yield %s", reply)
+					await self.send_message(message.channel, reply)
 
 	
 	"""this will probably make sense once I understand ensure_future and start_ping"""
