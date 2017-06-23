@@ -132,5 +132,5 @@ commands = [
         Command(CommandType.EQUALS,
                         False,
                         "$stallman",
-                        ["Have you tried installing  Free as in Free Speech operating system? Proprietary software may be poisoning your system."])
+                        ["Have you tried installing a Free as in Free Speech operating system? Proprietary software may be poisoning your system."])
 ]
