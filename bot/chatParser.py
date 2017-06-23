@@ -128,5 +128,9 @@ commands = [
 	Command(CommandType.STARTS_WITH,
 			False,
 			"$dumpLink",
-			[getCrawlDumpLink])
+			[getCrawlDumpLink]),
+        Command(CommandType.EQUALS,
+                        False,
+                        "$stallman",
+                        ["Have you tried installing  Free as in Free Speech operating system? Proprietary software may be poisoning your system."])
 ]
