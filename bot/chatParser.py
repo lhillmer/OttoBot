@@ -132,5 +132,9 @@ commands = [
         Command(CommandType.EQUALS,
                         False,
                         "$stallman",
-                        ["Have you tried installing a Free as in Free Speech operating system? Proprietary software may be poisoning your system."])
+                        ["Have you tried installing a Free as in Free Speech operating system? Proprietary software may be poisoning your system."]),
+        Command(CommandType.EQUALS,
+                        False,
+                        "$sexyStallman",
+                        ["D'oh! Stupid sexy Stallman!", "https://rms.sexy"])
 ]
