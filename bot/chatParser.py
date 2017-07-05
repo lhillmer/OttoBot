@@ -27,6 +27,15 @@ class Command():
             self.to_match = to_match.upper()
         
         self.responses = responses
+
+    def is_text_only(self):
+        result = True
+        for response in self.responses:
+            if not isinstance(response, str):
+                result = False
+                break
+
+        return result
     
     def does_match(self, input):
         if not self.case_sensitive:
@@ -80,22 +89,17 @@ class ChatParser():
                     False,
                     "$dumpLink",
                     [getCrawlDumpLink]))
+
+                self.addCommand(Command(CommandType.EQUALS,
+                    False,
+                    False,
+                    "$list",
+                    [list_commands]))
                 
     async def get_replies(self, message, web):
         """this yields strings until it has completed its reply"""
 
-        for cmd in self.commands:
-            if cmd.does_match(message.content):
-                _logger.info("Matched %s to command %s", message.content, cmd.to_match)
-                for response in cmd.responses:
-                    if isinstance(response, str):
-                        yield response
-                    elif callable(response):
-                        yield await response(message, web, self)
-                    else:
-                        raise TypeError("invalid value in responses: " + str(response))
-
-        for cmd in self.specialCommands:
+        for cmd in self.get_commands():
             if cmd.does_match(message.content):
                 _logger.info("Matched %s to command %s", message.content, cmd.to_match)
                 for response in cmd.responses:
@@ -109,16 +113,14 @@ class ChatParser():
     def addCommand(self, cmd):
         if not isinstance(cmd, Command):
             raise TypeError("cmd must be a Command object")
-        specialCommand = False
-        for response in cmd.responses:
-            if not isinstance(response, str):
-                specialCommand = True
-                break
-
-        if specialCommand:
+        
+        if not cmd.is_text_only():
             self.specialCommands.append(cmd)
         else:
             self.commands.append(cmd)
+
+    def get_commands(self):
+        return self.specialCommands + self.commands
 
     def save_commands(self):
         _logger.info("starting save!")
@@ -155,6 +157,10 @@ async def add(message, web, parser):
 async def add_command(message, web, parser):
     split = message.content.split(" ", 2)
     result = ""
+
+    if split[1] == "Bad to the bone http://momobot.net/cat/TP3.jpg":
+        return "Stop it, Max"
+
     try:
         parser.addCommand(Command(CommandType.EQUALS,
                 False,
@@ -211,3 +217,22 @@ async def getCrawlDumpLink(message, web, parser):
             result = split[1] + "?? That person doesn't even play crawl!"
     
     return result
+
+async def list_commands(message, web, parser):
+    output = "```"
+    width = 40
+    for cmd in parser.get_commands():
+        if len(output) != 0:
+            output += "\n"
+        output += cmd.to_match + (40 - len(cmd.to_match)) * " "
+        if cmd.is_text_only():
+            output += " (Text-Only Response)"
+        else:
+            output += "                     "
+        if cmd.removable:
+            output += " (Removable)"
+
+    output += "```"
+
+    return output
+
