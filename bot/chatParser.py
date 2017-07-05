@@ -13,7 +13,7 @@ class CommandType(Enum):
     EQUALS = 3
 
 class Command():
-    """This represents a command that the bot will respond to. Eventually, this should be able to hand further more complicated actions. For now, it just matches responses to """
+    """This represents a command that the bot will respond to"""
     def __init__(self, cmd_type, case_sensitive, removable, to_match, responses):
         if not isinstance(cmd_type, CommandType):
             raise TypeError("cmd_type must be an enum CommandType")
@@ -60,37 +60,37 @@ class ChatParser():
                 except Exception as e:
                     print("Couldn't load commands: " + str(e))
 
-                self.addCommand(Command(CommandType.STARTS_WITH,
+                self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
                     "$add",
                     ["I'm about to add some numbers", add, "That was fun!"]))
 
-                self.addCommand(Command(CommandType.STARTS_WITH,
+                self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
                     "$createCommand",
                     [add_command]))
 
-                self.addCommand(Command(CommandType.STARTS_WITH,
+                self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
                     "$deleteCommand",
                     [remove_command]))
 
-                self.addCommand(Command(CommandType.EQUALS,
+                self.add_command(Command(CommandType.EQUALS,
                     False,
                     False,
                     "$watch",
                     [getCrawlLink]))
                 
-                self.addCommand(Command(CommandType.EQUALS,
+                self.add_command(Command(CommandType.EQUALS,
                     False,
                     False,
                     "$dumpLink",
                     [getCrawlDumpLink]))
 
-                self.addCommand(Command(CommandType.EQUALS,
+                self.add_command(Command(CommandType.EQUALS,
                     False,
                     False,
                     "$list",
@@ -110,7 +110,7 @@ class ChatParser():
                     else:
                         raise TypeError("invalid value in responses: " + str(response))
 
-    def addCommand(self, cmd):
+    def add_command(self, cmd):
         if not isinstance(cmd, Command):
             raise TypeError("cmd must be a Command object")
         
@@ -162,7 +162,7 @@ async def add_command(message, web, parser):
         return "Stop it, Max"
 
     try:
-        parser.addCommand(Command(CommandType.EQUALS,
+        parser.add_command(Command(CommandType.EQUALS,
                 False,
                 True,
                 split[1],

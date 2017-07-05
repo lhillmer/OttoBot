@@ -27,11 +27,11 @@ class DiscordWrapper(discord.Client):
         self.webWrapper = webWrapper
 
         #add discord-specific chat commands here
-        self.chat_parser.addCommand(
+        self.chat_parser.add_command(
             chatParser.Command(
                 chatParser.CommandType.EQUALS,
                 False,
-                                False,
+                False,
                 "$clear",
                 [self.clearChat])
             )
