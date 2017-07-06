@@ -1,11 +1,11 @@
 import webWrapper
-import pickle
+import json
 
 import logging
 from enum import Enum
 
 _logger = logging.getLogger()
-_commandsFile = "commands.pickle"
+_commandsFileJson = "commands.json"
 
 class CommandType(Enum):
     STARTS_WITH = 1
@@ -48,14 +48,36 @@ class Command():
         elif self.cmd_type is CommandType.EQUALS:
             return self.to_match == input
 
+class CommandEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, Command):
+            return o.__dict__
+        elif isinstance(o, CommandType):
+            return o.value
+        return json.JSONEncoder.default(self, o)
+
+class CommandDecoder(json.JSONDecoder):
+    def __init__(self, *args, **kwargs):
+        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)
+
+    def object_hook(self, obj):
+        if 'cmd_type' not in obj:
+            return obj
+        else:
+            return Command(CommandType(int(obj['cmd_type'])),
+                    obj['case_sensitive'],
+                    obj['removable'],
+                    obj['to_match'],
+                    obj['responses'])
+            
+
 class ChatParser():
     def __init__(self):
                 self.commands = []
                 self.specialCommands = []
                 try:
-                    f = open(_commandsFile, "rb")
-                    self.commands = pickle.load(f)
-                    f.close()
+                    with open(_commandsFileJson, "r") as f:
+                        self.commands = json.load(f, cls=CommandDecoder)
                     print("loaded # of commands: " + str(len(self.commands)))
                 except Exception as e:
                     print("Couldn't load commands: " + str(e))
@@ -70,13 +92,13 @@ class ChatParser():
                     False,
                     False,
                     "$createCommand",
-                    [add_command]))
+                    [create_command]))
 
                 self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
                     "$deleteCommand",
-                    [remove_command]))
+                    [delete_command]))
 
                 self.add_command(Command(CommandType.EQUALS,
                     False,
@@ -124,13 +146,9 @@ class ChatParser():
 
     def save_commands(self):
         _logger.info("starting save!")
-        _logger.info("type of self.commands: " + str(type(self.commands)))
         try:
-            f = open(_commandsFile, "wb")
-            _logger.info("opened file: " + _commandsFile)
-            pickle.dump(self.commands, f)
-            _logger.info("dumped object to file")
-            f.close()
+            with open(_commandsFileJson, 'w') as jsonFile:
+                json.dump(self.commands, jsonFile, cls=CommandEncoder)
             _logger.info("done!")
         except Exception as e:
             _logger.info("couldn't save commands: " + str(e))
@@ -154,7 +172,7 @@ async def add(message, web, parser):
         result = "I know, the answer is {}!".format(str(total))
     return result
 
-async def add_command(message, web, parser):
+async def create_command(message, web, parser):
     split = message.content.split(" ", 2)
     result = ""
 
@@ -174,7 +192,7 @@ async def add_command(message, web, parser):
 
     return result
 
-async def remove_command(message, web, parser):
+async def delete_command(message, web, parser):
     split = message.content.split(" ")
     result = ""
     for c in parser.commands:
