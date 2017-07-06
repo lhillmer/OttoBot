@@ -19,11 +19,11 @@ else:
     ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, commandsFile, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
-        self.chat_parser = chatParser.ChatParser()
+        self.chat_parser = chatParser.ChatParser(prefix, commandsFile)
         self.webWrapper = webWrapper
 
         #add discord-specific chat commands here

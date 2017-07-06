@@ -7,6 +7,7 @@ import signal
 import argparse
 import functools
 import sys
+import configparser
 
 logging.basicConfig(filename='example.log',level=logging.INFO)
 stdout = logging.StreamHandler(sys.stdout)
@@ -23,11 +24,10 @@ else:
 
 class OttoBot:
     
-    def __init__(self, token):
-
+    def __init__(self, token, prefix, commandsFile):
         self.loop = asyncio.get_event_loop()
         self.web = WebWrapper(self.loop)
-        self.discord = DiscordWrapper(token, self.web)
+        self.discord = DiscordWrapper(token, self.web, prefix, commandsFile)
         self.discord_task = None
         self.web_task = None
         self.shutdown_error = False
@@ -78,22 +78,15 @@ class OttoBot:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("-t", dest="discordToken", help="discord bot token", required=False)
-    parser.add_argument("-c", dest="tokenFile", help="token file", required=False)
+    parser.add_argument("-c", dest="configFile", help="Relative Path to config file", required=True)
     args = parser.parse_args()
 
-    token = None
-    if args.discordToken:
-        token = args.discordToken
-    elif args.tokenFile:
-        f = open(args.tokenFile, 'r')
-        token = f.read().strip()
-        f.close()
-
-    if token:
-        bot = OttoBot(token)
-        bot.start()
-    else:
-        print("Couldn't get token!")
+    config = configparser.ConfigParser()
+    config.read(args.configFile)
+        
+    bot = OttoBot(config.get('DEFAULT', 'token'),
+            config.get('DEFAULT', 'prefix'),
+            config.get('DEFAULT', 'commandsFile'))
+    bot.start()
 
 main()

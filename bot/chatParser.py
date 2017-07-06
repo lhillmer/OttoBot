@@ -5,7 +5,6 @@ import logging
 from enum import Enum
 
 _logger = logging.getLogger()
-_commandsFileJson = "commands.json"
 
 class CommandType(Enum):
     STARTS_WITH = 1
@@ -72,11 +71,13 @@ class CommandDecoder(json.JSONDecoder):
             
 
 class ChatParser():
-    def __init__(self):
+    def __init__(self, prefix, commandsFile):
                 self.commands = []
                 self.specialCommands = []
+                self.commands_file = commandsFile
+                self.prefix = prefix
                 try:
-                    with open(_commandsFileJson, "r") as f:
+                    with open(self.commands_file, "r") as f:
                         self.commands = json.load(f, cls=CommandDecoder)
                     print("loaded # of commands: " + str(len(self.commands)))
                 except Exception as e:
@@ -135,6 +136,9 @@ class ChatParser():
     def add_command(self, cmd):
         if not isinstance(cmd, Command):
             raise TypeError("cmd must be a Command object")
+
+        if not cmd.to_match.startswith(self.prefix):
+            cmd.to_match = self.prefix + cmd.to_match
         
         if not cmd.is_text_only():
             self.specialCommands.append(cmd)
@@ -147,7 +151,7 @@ class ChatParser():
     def save_commands(self):
         _logger.info("starting save!")
         try:
-            with open(_commandsFileJson, 'w') as jsonFile:
+            with open(self.commands_file, 'w') as jsonFile:
                 json.dump(self.commands, jsonFile, cls=CommandEncoder)
             _logger.info("done!")
         except Exception as e:
@@ -180,12 +184,13 @@ async def create_command(message, web, parser):
         return "Stop it, Max"
 
     try:
-        parser.add_command(Command(CommandType.EQUALS,
+        newCommand = Command(CommandType.EQUALS,
                 False,
                 True,
                 split[1],
-                [split[2]]))
-        result = "Added command: " + split[1]
+                [split[2]])
+        parser.add_command(newCommand)
+        result = "Added command: " + newCommand.to_match
         parser.save_commands()
     except Exception as e:
         result = "Failed to add command: " + str(e)
