@@ -1,15 +1,19 @@
 import webWrapper
-import json
+from customSearchEngine import CustomSearchEngine
+import globalSettings
 
+import json
 import logging
 from enum import Enum
 
 _logger = logging.getLogger()
 
+
 class CommandType(Enum):
     STARTS_WITH = 1
     CONTAINS = 2
     EQUALS = 3
+
 
 class Command():
     """This represents a command that the bot will respond to"""
@@ -47,6 +51,7 @@ class Command():
         elif self.cmd_type is CommandType.EQUALS:
             return self.to_match == input
 
+
 class CommandEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, Command):
@@ -54,6 +59,7 @@ class CommandEncoder(json.JSONEncoder):
         elif isinstance(o, CommandType):
             return o.value
         return json.JSONEncoder.default(self, o)
+
 
 class CommandDecoder(json.JSONDecoder):
     def __init__(self, *args, **kwargs):
@@ -68,7 +74,7 @@ class CommandDecoder(json.JSONDecoder):
                     obj['removable'],
                     obj['to_match'],
                     obj['responses'])
-            
+
 
 class ChatParser():
     def __init__(self, prefix, commandsFile):
@@ -86,38 +92,44 @@ class ChatParser():
                 self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
-                    "$add",
+                    "add",
                     ["I'm about to add some numbers", add, "That was fun!"]))
 
                 self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
-                    "$createCommand",
+                    "createCommand",
                     [create_command]))
 
                 self.add_command(Command(CommandType.STARTS_WITH,
                     False,
                     False,
-                    "$deleteCommand",
+                    "deleteCommand",
                     [delete_command]))
 
                 self.add_command(Command(CommandType.EQUALS,
                     False,
                     False,
-                    "$watch",
+                    "watch",
                     [getCrawlLink]))
                 
                 self.add_command(Command(CommandType.EQUALS,
                     False,
                     False,
-                    "$dumpLink",
+                    "dumpLink",
                     [getCrawlDumpLink]))
 
                 self.add_command(Command(CommandType.EQUALS,
                     False,
                     False,
-                    "$list",
+                    "list",
                     [list_commands]))
+
+                self.add_command(Command(CommandType.STARTS_WITH,
+                    False,
+                    False,
+                    "steamGame",
+                    [find_steam_game]))
                 
     async def get_replies(self, message, web):
         """this yields strings until it has completed its reply"""
@@ -158,7 +170,6 @@ class ChatParser():
             _logger.info("couldn't save commands: " + str(e))
 
 
-
 async def add(message, web, parser):
     split = message.content.split(" ")
     result = None
@@ -175,6 +186,7 @@ async def add(message, web, parser):
     if not result:
         result = "I know, the answer is {}!".format(str(total))
     return result
+
 
 async def create_command(message, web, parser):
     split = message.content.split(" ", 2)
@@ -197,6 +209,7 @@ async def create_command(message, web, parser):
 
     return result
 
+
 async def delete_command(message, web, parser):
     split = message.content.split(" ")
     result = ""
@@ -212,6 +225,7 @@ async def delete_command(message, web, parser):
                 break
     return result
 
+
 async def getCrawlLink(message, web, parser):
     split = message.content.split(" ")
     result = None
@@ -225,8 +239,9 @@ async def getCrawlLink(message, web, parser):
             result = "http://crawl.akrasiac.org:8080/#watch-" + split[1]
         else:
             result = split[1] + "?? That person doesn't even play crawl!"
-    
+
     return result
+
 
 async def getCrawlDumpLink(message, web, parser):
     split = message.content.split(" ")
@@ -238,8 +253,9 @@ async def getCrawlDumpLink(message, web, parser):
             result = "http://crawl.akrasiac.org/rawdata/{}/{}.txt".format(split[1], split[1])
         else:
             result = split[1] + "?? That person doesn't even play crawl!"
-    
+
     return result
+
 
 async def list_commands(message, web, parser):
     output = "```"
@@ -247,7 +263,7 @@ async def list_commands(message, web, parser):
     for cmd in parser.get_commands():
         if len(output) != 0:
             output += "\n"
-        output += cmd.to_match + (40 - len(cmd.to_match)) * " "
+        output += cmd.to_match + (width - len(cmd.to_match)) * " "
         if cmd.is_text_only():
             output += " (Text-Only Response)"
         else:
@@ -259,3 +275,25 @@ async def list_commands(message, web, parser):
 
     return output
 
+
+async def find_steam_game(message, web, parser):
+    split = message.content.split(" ", 1)
+    result = ""
+    if len(split) == 1:
+        result = "Please specify a game"
+    else:
+        cse = CustomSearchEngine(web,
+                globalSettings.config.get('DEFAULT', 'cse_cx'),
+                globalSettings.config.get('DEFAULT', 'cse_key'))
+
+        response = await cse.search(split[1])
+        if response.status != 200:
+            if response.error_message:
+                result = response.error_message + " "
+            result += "(Http status: " + str(response.status) + ")"
+        elif len(response.items) == 0:
+            result = "Found no responses for query"
+        else:
+            result = response.items[0].title + ": " + response.items[0].link
+
+    return result

@@ -1,15 +1,14 @@
 from bot import DiscordWrapper
 from webWrapper import WebWrapper
+import globalSettings
 
 import asyncio
 import logging
 import signal
-import argparse
 import functools
 import sys
-import configparser
 
-logging.basicConfig(filename='example.log',level=logging.INFO)
+logging.basicConfig(filename='example.log', level=logging.INFO)
 stdout = logging.StreamHandler(sys.stdout)
 stdout.setLevel(logging.INFO)
 stdout.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: [%(name)s] %(message)s'))
@@ -22,8 +21,8 @@ if hasattr(asyncio, "async"):
 else:
     ensure_future = asyncio.ensure_future
 
+
 class OttoBot:
-    
     def __init__(self, token, prefix, commandsFile):
         self.loop = asyncio.get_event_loop()
         self.web = WebWrapper(self.loop)
@@ -43,8 +42,7 @@ class OttoBot:
             else:
                 _logger.info(msg)
             self.stop(is_error)
-            
-        
+      
         """make sure the primary loop is interruptable"""
         for signame in ("SIGINT", "SIGTERM"):
             """windows doesn't have signals, so this will error if running on windows"""
@@ -76,17 +74,12 @@ class OttoBot:
         while True:
             await asyncio.wait([self.web_task, self.discord_task], return_when=asyncio.FIRST_COMPLETED)
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-c", dest="configFile", help="Relative Path to config file", required=True)
-    args = parser.parse_args()
 
-    config = configparser.ConfigParser()
-    config.read(args.configFile)
-        
-    bot = OttoBot(config.get('DEFAULT', 'token'),
-            config.get('DEFAULT', 'prefix'),
-            config.get('DEFAULT', 'commandsFile'))
+def main():
+    globalSettings.init()
+    bot = OttoBot(globalSettings.config.get('DEFAULT', 'token'),
+            globalSettings.config.get('DEFAULT', 'prefix'),
+            globalSettings.config.get('DEFAULT', 'commandsFile'))
     bot.start()
 
 main()

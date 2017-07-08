@@ -32,7 +32,7 @@ class DiscordWrapper(discord.Client):
                 chatParser.CommandType.EQUALS,
                 False,
                 False,
-                "$clear",
+                "clear",
                 [self.clearChat])
             )
 
