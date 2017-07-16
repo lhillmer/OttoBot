@@ -1,10 +1,11 @@
-import webWrapper
 from customSearchEngine import CustomSearchEngine
 import globalSettings
 
 import json
 import logging
 from enum import Enum
+import random
+import asyncio
 
 _logger = logging.getLogger()
 
@@ -23,12 +24,12 @@ class Command():
         self.cmd_type = cmd_type
         self.case_sensitive = case_sensitive
         self.removable = removable
-        
+
         if case_sensitive:
             self.to_match = to_match
         else:
             self.to_match = to_match.upper()
-        
+
         self.responses = responses
 
     def is_text_only(self):
@@ -39,11 +40,11 @@ class Command():
                 break
 
         return result
-    
+
     def does_match(self, input):
         if not self.case_sensitive:
             input = input.upper()
-        
+
         if self.cmd_type is CommandType.STARTS_WITH:
             return input.startswith(self.to_match)
         elif self.cmd_type is CommandType.CONTAINS:
@@ -130,7 +131,12 @@ class ChatParser():
                     False,
                     "steamGame",
                     [find_steam_game]))
-                
+
+                self.add_command(Command(CommandType.EQUALS,
+                    False,
+                    False,
+                    "comedy",
+                    ["Want to know the secret to good comedy?", timing]))
     async def get_replies(self, message, web):
         """this yields strings until it has completed its reply"""
 
@@ -151,7 +157,7 @@ class ChatParser():
 
         if not cmd.to_match.startswith(self.prefix):
             cmd.to_match = self.prefix + cmd.to_match
-        
+
         if not cmd.is_text_only():
             self.specialCommands.append(cmd)
         else:
@@ -297,3 +303,12 @@ async def find_steam_game(message, web, parser):
             result = response.items[0].title + ": " + response.items[0].link
 
     return result
+
+
+async def timing(message, web, parser):
+    minTime = 0
+    maxTime = 10520000
+    wait = random.randrange(minTime, maxTime, 1)
+
+    await asyncio.sleep(wait)
+    return message.author.mention + " TIMING!"
