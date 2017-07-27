@@ -141,8 +141,7 @@ class FunctionExecutor():
 
     async def timing_queue(self, request_id, response_id, message, bot, parser, web):
         minTime = 0
-        #maxTime = 10520000
-        maxTime = 60
+        maxTime = 10520000
         delay = random.randrange(minTime, maxTime, 1)
         when = datetime.datetime.now() + datetime.timedelta(seconds=delay)
         bot.db.insert_pending_response(request_id, response_id, when, message)
