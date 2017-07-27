@@ -18,11 +18,13 @@ CREATE TABLE ottobot.responses(
     id serial NOT NULL,
     text varchar(256),
     functionname varchar(256),
-    after int,
+    next int,
+    previous int,
     commandid int NOT NULL,
     PRIMARY KEY(id),
     FOREIGN KEY(commandid) REFERENCES ottobot.commands(id),
-    FOREIGN KEY(after) REFERENCES ottobot.responses(id)
+    FOREIGN KEY(next) REFERENCES ottobot.responses(id),
+    FOREIGN KEY(previous) REFERENCES ottobot.responses(id)
 );
 CREATE TABLE ottobot.requests(
     id serial NOT NULL,
@@ -38,6 +40,7 @@ CREATE TABLE ottobot.pendingresponses(
     previousresponse int NOT NULL,
     stored timestamp,
     execute timestamp NOT NULL,
+    message bytea,
     PRIMARY KEY(id),
     FOREIGN KEY(requestid) REFERENCES ottobot.requests(id),
     FOREIGN KEY(previousresponse) REFERENCES ottobot.responses(id)

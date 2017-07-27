@@ -1,4 +1,6 @@
 import chatParser
+from postgresWrapper import PostgresWrapper
+from functionExecutor import FunctionExecutor
 
 import discord
 
@@ -19,37 +21,33 @@ else:
     ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, prefix, commandsFile, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, connectionString, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
-        self.chat_parser = chatParser.ChatParser(prefix, commandsFile)
+        self.db = PostgresWrapper(connectionString)
+        self.function_executor = FunctionExecutor()
+        self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
 
-        #add discord-specific chat commands here
-        self.chat_parser.add_command(
-            chatParser.Command(
-                chatParser.CommandType.EQUALS,
-                False,
-                False,
-                "clear",
-                [self.clearChat])
-            )
-
-    async def clearChat(self, message, web):
-        try:
-            if message.server and not message.channel.permissions_for(message.server.me).manage_messages:
-                return "OttoBot has insufficient permissions to clear this channel"
-        except Exception as e:
-            _logger.error("Failed to get permissions for clear command. Assuming bot does not have permissions")
-            return "OttoBot has insufficient permissions to clear this channel"
-
-        def is_not_pinned(m):
-            return not m.pinned
-
-        await self.purge_from(message.channel, check=is_not_pinned)
-
-        return "Fresh chat for ya!"
+    async def clear_chat(self, server_id, channel_id):
+        for server in self.servers:
+            if server.id == server_id:
+                for channel in server.channels:
+                    if channel.id == channel_id:
+                        try:
+                            if not channel.permissions_for(server.me).manage_messages:
+                                return "OttoBot has insufficient permissions to clear this channel"
+                        except Exception as e:
+                            _logger.error("Failed to get permissions for clear command. Assuming bot does not have permissions")
+                            return "OttoBot has insufficient permissions to clear this channel"
+                        def is_not_pinned(m):
+                            return not m.pinned
+                        await self.purge_from(message.channel, check=is_not_pinned)
+                        return "Fresh chat for ya!"
+                break
+        _logger.error("Could not match server_id (%s) and channel_id (%s)", server_id, channel_id)
+        return "Huh, that channel doesn't exist on that server. weird."
 
     
     def log_exception(self, e, error_msg):
@@ -84,15 +82,17 @@ class DiscordWrapper(discord.Client):
                 return
         except Exception as e:
             _logger.error("Failed to get permissions for bot user. Assuming the bot has permissions")
-            
-        if isinstance(message.author, discord.Member) and self.user != message.author:
-            async for reply in self.chat_parser.get_replies(message, self.webWrapper):
-                if not reply or len(reply) == 0:
-                    _logger.info("received empty string from yield. continuing...")
-                    continue
-                else:
-                    _logger.info("received from yield %s", reply)
-                    await self.send_message(message.channel, reply)
+        
+        try:
+            if isinstance(message.author, discord.Member) and self.user != message.author:
+                reply_generator = self.chat_parser.get_replies(message, self, self.webWrapper)
+                if reply_generator:
+                    async for reply in reply_generator:
+                        if not reply:
+                            continue
+                        await self.handle_reply(message, reply)
+        except Exception as e:
+            _logger.error("Error handling command: %s", str(e))
 
     
     """this will probably make sense once I understand ensure_future and start_ping"""
@@ -112,3 +112,35 @@ class DiscordWrapper(discord.Client):
             await self.close()
         except Exception as e:
             self.log_exception(e, "Error when disconnecting")
+    
+    async def handle_reply(self, message, reply):
+        if not reply:
+            _logger.info("received empty string from yield. continuing...")
+        else:
+            _logger.info("received from yield %s", reply)
+            await self.send_message(message.channel, reply)
+    
+    async def check_pending_responses(self):
+        _logger.info("Staring pending response checker")
+        while True:
+            #only check every 15 seconds
+            await asyncio.sleep(15)
+            try:
+                responses = self.db.get_ready_pending_responses()
+                _logger.info("got pending response count: %s", len(responses))
+                for response in responses:
+                    request = self.db.get_request(response.request_id)
+                    _logger.info("handling pending response (%s) for request (%s) for command (%s)", str(response.id), str(request.id), str(request.command_id))
+                    if request.command_id in self.chat_parser.commands:
+                        if response.previous_response in self.chat_parser.responses[request.command_id]:
+                            prev = self.chat_parser.responses[request.command_id][response.previous_response]
+                            async for reply in self.chat_parser.get_responses(request.command_id, prev.next, request.id, response.message, self, self.webWrapper):
+                                await self.handle_reply(response.message, reply)
+                        else:
+                            _logger.warn("previous_response (%s) for request (%s) no longer exists. ignoring", str(response.previous_response), str(request.id))
+                    else:
+                        _logger.warn("command for request (%s) is no longer active. ignoring", str(request.id))
+                    _logger.info("pending response (%s) handled", str(response.id))
+                    self.db.delete_pending_response(response.id)
+            except Exception as e:
+                _logger.error("Ignoring error in check_pending_responses: %s", str(e))

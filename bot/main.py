@@ -29,6 +29,7 @@ class OttoBot:
         self.discord = DiscordWrapper(token, self.web, prefix, commandsFile)
         self.discord_task = None
         self.web_task = None
+        self.response_checker_task = None
         self.shutdown_error = False
     
     def start(self):
@@ -53,6 +54,7 @@ class OttoBot:
 
         self.discord_task = ensure_future(self.discord.start())
         self.web_task = ensure_future(self.web.run())
+        self.response_checker_task = ensure_future(self.discord.check_pending_responses())
         
         try:
             self.loop.run_until_complete(self.process())
@@ -72,14 +74,14 @@ class OttoBot:
     async def process(self):
         
         while True:
-            await asyncio.wait([self.web_task, self.discord_task], return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait([self.web_task, self.discord_task, self.response_checker_task], return_when=asyncio.FIRST_COMPLETED)
 
 
 def main():
     globalSettings.init()
     bot = OttoBot(globalSettings.config.get('DEFAULT', 'token'),
             globalSettings.config.get('DEFAULT', 'prefix'),
-            globalSettings.config.get('DEFAULT', 'commandsFile'))
+            globalSettings.config.get('DEFAULT', 'connectionString'))
     bot.start()
 
 main()
