@@ -117,8 +117,21 @@ class DiscordWrapper(discord.Client):
         if not reply:
             _logger.info("received empty string from yield. continuing...")
         else:
-            _logger.info("received from yield %s", reply)
-            await self.send_message(message.channel, reply)
+            #max number of chars discord allows in a message
+            max_length = 2000
+            reply_list = []
+            next = reply
+            while len(next) > max_length:
+                newline = next.rfind('\n')
+                if newline == -1:
+                    reply_list.append(next[0:max_length])
+                    next = next[max_length:]
+                else:
+                    reply_list.append(next[0:newline])
+                    next = next[newline+1:]
+            reply_list.append(next)
+            for r in reply_list:
+                await self.send_message(message.channel, r)
     
     async def check_pending_responses(self):
         _logger.info("Staring pending response checker")

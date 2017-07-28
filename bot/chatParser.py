@@ -86,8 +86,11 @@ class ChatParser():
             self.responses[response.command_id][resp.id] = resp
         
         #if we now have an empty list of responses, then deactivate the command
+        #make sure to delete the command and corresponding responses!
         if len(self.responses[response.command_id]) == 0:
             self.db.deactivate_command(response.command_id)
+            del self.commands[response.command_id]
+            del self.responses[response.command_id]
 
     def is_match(self, command, text):
         to_match = command.text
