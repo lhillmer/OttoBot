@@ -103,7 +103,7 @@ class FunctionExecutor():
     async def list_commands(self, request_id, response_id, message, bot, parser, web):
         output = "```"
         width = 40
-        for c in parser.commands:
+        for c in sorted(parser.commands, key=str.lower):
             cmd = parser.commands[c]
             if len(output) != 0:
                 output += "\n"
