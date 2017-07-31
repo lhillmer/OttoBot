@@ -59,9 +59,9 @@ class FunctionExecutor():
         for c in parser.commands:
             if parser.is_match(parser.commands[c], split[1]):
                 if parser.commands[c].removable:
+                    result = "Removed command: " + parser.commands[c].text
                     response = parser.get_first_response(parser.commands[c].id)
                     parser.delete_response(response)
-                    result = "Removed command: " + parser.commands[c].text
                     break
                 else:
                     result = "Command not removable"
@@ -101,18 +101,7 @@ class FunctionExecutor():
 
 
     async def list_commands(self, request_id, response_id, message, bot, parser, web):
-        output = "```"
-        width = 40
-        for c in parser.commands:
-            cmd = parser.commands[c]
-            if len(output) != 0:
-                output += "\n"
-            output += cmd.text + (width - len(cmd.text)) * " "
-            if cmd.removable:
-                output += " (Removable)"
-
-        output += "```"
-
+        output = '\n'.join(parser.commands[cmd].text for cmd in parser.commands)
         return (output, True)
 
 

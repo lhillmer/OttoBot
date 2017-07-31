@@ -89,8 +89,11 @@ class ChatParser():
         #make sure to delete the command and corresponding responses!
         if len(self.responses[response.command_id]) == 0:
             self.db.deactivate_command(response.command_id)
+            _logger.info("test1")
             del self.commands[response.command_id]
+            _logger.info("test2")
             del self.responses[response.command_id]
+            _logger.info("test3")
 
     def is_match(self, command, text):
         to_match = command.text

@@ -20,11 +20,12 @@ class PostgresWrapper():
         self.connection = psycopg2.connect(self.connection_string)
         self.cursor = self.connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    def _query_wrapper(self, query, vars=[], doFetch=True):
+    def _query_wrapper(self, query, vars=[], doFetch=True, doLog=True):
         retry = True
         while(retry):
             try:
-                _logger.info('making Query: ' + query)
+                if doLog:
+                    _logger.info('making Query: ' + query)
                 for v in vars:
                     _logger.info('val: %s', str(v))
                 self.cursor.execute(query, vars)
@@ -62,7 +63,8 @@ class PostgresWrapper():
         return Request(self._query_wrapper("SELECT * FROM ottobot.requests WHERE id=%s;", [request_id])[0])
 
     def get_ready_pending_responses(self):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.pendingresponses WHERE execute <= now();")
+        #ignore logging on this one query because it happens every 15s
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.pendingresponses WHERE execute <= now();", doLog=False)
         result = []
         for raw in rawVals:
             result.append(PendingResponse(raw))

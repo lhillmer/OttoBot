@@ -9,11 +9,7 @@ import functools
 import sys
 
 logging.basicConfig(filename='example.log', level=logging.INFO)
-stdout = logging.StreamHandler(sys.stdout)
-stdout.setLevel(logging.INFO)
-stdout.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: [%(name)s] %(message)s'))
 _logger = logging.getLogger()
-_logger.addHandler(stdout)
 
 """what's the difference between these two?"""
 if hasattr(asyncio, "async"):

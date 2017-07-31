@@ -118,7 +118,7 @@ class DiscordWrapper(discord.Client):
             _logger.info("received empty string from yield. continuing...")
         else:
             #max number of chars discord allows in a message
-            max_length = 2000
+            max_length = 1500
             reply_list = []
             next = reply
             while len(next) > max_length:
