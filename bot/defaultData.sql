@@ -5,6 +5,8 @@ INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtyp
 INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
     SELECT '$deleteCommand', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'STARTS_WITH';
 INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
+    SELECT '$deleteResponse', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'STARTS_WITH';
+INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
     SELECT '$watch', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'STARTS_WITH';
 INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
     SELECT '$dumpLink', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'STARTS_WITH';
@@ -27,6 +29,8 @@ INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'create_command', NULL, NULL, id FROM ottobot.commands WHERE text = '$createCommand';
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'delete_command', NULL, NULL, id FROM ottobot.commands WHERE text = '$deleteCommand';
+INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
+    SELECT NULL, 'delete_response', NULL, NULL, id FROM ottobot.commands WHERE text = '$deleteResponse';
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'get_crawl_link', NULL, NULL, id FROM ottobot.commands WHERE text = '$watch';
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)

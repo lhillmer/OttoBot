@@ -78,6 +78,26 @@ class FunctionExecutor():
                     break
         return (result, True)
 
+    async def delete_response(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ")
+        result = "Invalid response"
+        try:
+            response_id = int(split[1])
+            response = parser.get_response_by_id(response_id)
+            if response:
+                if parser.commands[response.command_id].removable:
+                    parser.delete_response(response)
+                    result = "Response deleted"
+                else:
+                    result = "That response is not editable"
+            else:
+                result = "Could not find matching response"
+             
+        except Exception as e:
+            result = "Could not parse response id"
+
+        return (result, True)
+
 
     async def get_crawl_link(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ")

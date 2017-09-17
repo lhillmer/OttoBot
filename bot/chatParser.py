@@ -53,6 +53,12 @@ class ChatParser():
             resp = None
         return resp
 
+    def get_response_by_id(self, id):
+        for i in self.responses:
+            for j in self.responses[i]:
+                if self.responses[i][j].id == id:
+                    return self.responses[i][j]
+
     def get_last_response(self, command_id):
         for r in self.responses[command_id]:
             if self.responses[command_id][r].next == None:
@@ -136,10 +142,10 @@ class ChatParser():
         while response:
             _logger.info("getting response: " + str(response.id))
             if response.text:
-                yield response.text
+                yield "(" + str(response.id) + ") " + response.text
             elif response.function:
                 result = await self.function_executor.execute(response.function, request_id, response.id, message, bot, self, web)
-                yield result[0]
+                yield "(" + str(response.id) + ") " + result[0]
                 if not result[1]:
                     break
             else:
