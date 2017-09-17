@@ -101,7 +101,7 @@ class FunctionExecutor():
 
 
     async def list_commands(self, request_id, response_id, message, bot, parser, web):
-        output = '\n'.join(parser.commands[cmd].text for cmd in parser.commands)
+        output = ', '.join(parser.commands[cmd].text if parser.commands[cmd].text.startswith(parser.prefix) for cmd in sorted(parser.commands, key=lambda x:x.text))
         return (output, True)
 
 

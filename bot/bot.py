@@ -140,7 +140,6 @@ class DiscordWrapper(discord.Client):
             await asyncio.sleep(15)
             try:
                 responses = self.db.get_ready_pending_responses()
-                _logger.info("got pending response count: %s", len(responses))
                 for response in responses:
                     request = self.db.get_request(response.request_id)
                     _logger.info("handling pending response (%s) for request (%s) for command (%s)", str(response.id), str(request.id), str(request.command_id))
