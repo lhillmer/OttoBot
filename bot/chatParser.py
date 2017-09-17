@@ -41,6 +41,17 @@ class ChatParser():
         for r in self.responses[command_id]:
             if self.responses[command_id][r].previous == None:
                 return self.responses[command_id][r]
+    
+    def get_response(self, command_id, i):
+        _logger.info("trying to get response " + str(i) + " from command " + str(command_id))
+        cur = 0
+        resp = self.get_first_response(command_id)
+        while resp.next is not None and cur < i:
+            cur += 1
+            resp = self.responses[command_id][resp.next]
+        if cur != i:
+            resp = None
+        return resp
 
     def get_last_response(self, command_id):
         for r in self.responses[command_id]:

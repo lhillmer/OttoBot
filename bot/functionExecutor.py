@@ -58,10 +58,20 @@ class FunctionExecutor():
         result = "No matching command found"
         for c in parser.commands:
             if parser.is_match(parser.commands[c], split[1]):
+                index = 0
+                if len(split) > 2:
+                    try:
+                        index = int(split[2])
+                    except Exception as e:
+                        result = split[2] + " is not a valid index"
+                        break
                 if parser.commands[c].removable:
-                    result = "Removed command: " + parser.commands[c].text
-                    response = parser.get_first_response(parser.commands[c].id)
-                    parser.delete_response(response)
+                    response = parser.get_response(parser.commands[c].id, index)
+                    if response:
+                        parser.delete_response(response)
+                        result = "Removed command: " + parser.commands[c].text
+                    else:
+                        result = "This command doesn't have that many responses"
                     break
                 else:
                     result = "Command not removable"
