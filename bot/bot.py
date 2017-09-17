@@ -4,6 +4,7 @@ from functionExecutor import FunctionExecutor
 
 import discord
 
+import datetime
 import asyncio
 import logging
 
@@ -21,7 +22,7 @@ else:
     ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, prefix, connectionString, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
@@ -29,6 +30,9 @@ class DiscordWrapper(discord.Client):
         self.function_executor = FunctionExecutor()
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
+        self.spam_limit = spamLimit
+        self.spam_timeout = spamTimeout
+        self.display_response_id = displayResponseId
 
     async def clear_chat(self, server_id, channel_id):
         for server in self.servers:
@@ -84,8 +88,8 @@ class DiscordWrapper(discord.Client):
             _logger.error("Failed to get permissions for bot user. Assuming the bot has permissions")
         
         try:
-            if isinstance(message.author, discord.Member) and self.user != message.author:
-                reply_generator = self.chat_parser.get_replies(message, self, self.webWrapper)
+            if isinstance(message.author, discord.Member):
+                reply_generator = self.chat_parser.get_replies(message, self, self.webWrapper, self.db, self.spam_timeout, self.spam_limit, self.display_response_id)
                 if reply_generator:
                     async for reply in reply_generator:
                         if not reply:

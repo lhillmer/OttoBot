@@ -1,6 +1,7 @@
 import globalSettings
 from dataContainers import Command
 
+import datetime
 import logging
 import asyncio
 
@@ -126,26 +127,37 @@ class ChatParser():
         else:
             _logger.warn("Unknown command type: " + self.command_types[command.command_type_id].name)
 
-    def get_replies(self, message, bot, web):
+    def get_replies(self, message, bot, web, db, spam_timeout, spam_limit, display_response_id):
         """this yields strings until it has completed its reply"""
         for i in self.commands:
             cmd = self.commands[i]
             if self.is_match(cmd, message.content):
+                
+                recent_requests = db.get_recent_requests(message.author.name, datetime.datetime.now() - datetime.timedelta(seconds=spam_timeout))
+                if len(recent_requests) >= spam_limit:
+                    _logger.info("spam limit hit for user " + message.author.name)
+                    return self.dumb_wrapper("Cool your jets, " + message.author.mention)
                 _logger.info("Matched %s to command %s", message.content, cmd.text)
                 request_id = self.db.insert_request(message.author.name, cmd.id)
                 response = self.get_first_response(cmd.id)
-                return self.get_responses(cmd.id, response.id, request_id, message, bot, web)
+                return self.get_responses(cmd.id, response.id, request_id, message, bot, web, display_response_id)
+
+    async def dumb_wrapper(self, message):
+        yield message
 
     #helper function to encapsulate response logic (for use with pending responses)
-    async def get_responses(self, command_id, response_id, request_id, message, bot, web):
+    async def get_responses(self, command_id, response_id, request_id, message, bot, web, display_response_id):
         response = self.responses[command_id][response_id]
         while response:
             _logger.info("getting response: " + str(response.id))
+            prefix = ""
+            if display_response_id:
+                prefix = "(" + str(response.id) + ") "
             if response.text:
-                yield "(" + str(response.id) + ") " + response.text
+                yield prefix + response.text
             elif response.function:
                 result = await self.function_executor.execute(response.function, request_id, response.id, message, bot, self, web)
-                yield "(" + str(response.id) + ") " + result[0]
+                yield prefix + result[0]
                 if not result[1]:
                     break
             else:

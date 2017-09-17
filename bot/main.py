@@ -19,10 +19,10 @@ else:
 
 
 class OttoBot:
-    def __init__(self, token, prefix, commandsFile):
+    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id):
         self.loop = asyncio.get_event_loop()
         self.web = WebWrapper(self.loop)
-        self.discord = DiscordWrapper(token, self.web, prefix, commandsFile)
+        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id)
         self.discord_task = None
         self.web_task = None
         self.response_checker_task = None
@@ -77,7 +77,10 @@ def main():
     globalSettings.init()
     bot = OttoBot(globalSettings.config.get('DEFAULT', 'token'),
             globalSettings.config.get('DEFAULT', 'prefix'),
-            globalSettings.config.get('DEFAULT', 'connectionString'))
+            globalSettings.config.get('DEFAULT', 'connectionString'),
+            int(globalSettings.config.get('DEFAULT', 'spam_limit')),
+            int(globalSettings.config.get('DEFAULT', 'spam_timeout')),
+            globalSettings.config.get('DEFAULT', 'display_response_id') == 'True')
     bot.start()
 
 main()
