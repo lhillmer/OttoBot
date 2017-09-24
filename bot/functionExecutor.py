@@ -159,6 +159,9 @@ class FunctionExecutor():
 
 
     async def timing_queue(self, request_id, response_id, message, bot, parser, web):
+        false_start = random.randint(1, 10)
+        if false_start <= 3:
+            return (message.author.mention + " TIMING!!!!!!!!!!!!\n\n\nWait no...", False)
         minTime = 0
         maxTime = 10520000
         delay = random.randrange(minTime, maxTime, 1)
