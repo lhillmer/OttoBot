@@ -1,0 +1,2 @@
+# OttoBot
+Discord Bot
