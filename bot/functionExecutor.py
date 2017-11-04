@@ -33,13 +33,35 @@ class FunctionExecutor():
             result = "I know, the answer is {}!".format(str(total))
         return (result, True)
 
+    async def favorite(self, request_id, response_id, message, bot, parser, web):
+        requests = bot.db.get_user_requests(message.author.name)
+        counts = {}
+        fav_count = 0
+        fav_list = []
+        for r in requests:
+            if r.command_id in counts:
+                counts[r.command_id] += 1
+            else:
+                counts[r.command_id] = 1
+
+            if counts[r.command_id] == fav_count:
+                fav_list.append(r.command_id)
+            elif counts[r.command_id] > fav_count:
+                fav_list = [r.command_id]
+                fav_count = counts[r.command_id]
+        
+        if len(fav_list) > 1:
+            result = message.author.mention + ", your favorite commands are: {0_ ({1} calls each)"
+        else:
+            result = message.author.mention + ", your favorite command is: {0} ({1} calls)"
+
+        result = result.format(", ".join(parser.commands[cmd_id].text for cmd_id in fav_list), fav_count)
+        
+        return (result, True)
 
     async def create_command(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ", 2)
         result = ""
-
-        if split[1] == "Bad to the bone http://momobot.net/cat/TP3.jpg":
-            return "Stop it, Max"
 
         try:
             type_id = parser.get_command_type_id('EQUALS')
