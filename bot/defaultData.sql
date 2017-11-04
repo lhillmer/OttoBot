@@ -18,6 +18,8 @@ INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtyp
     SELECT '$comedy', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'EQUALS';
 INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
     SELECT '$clear', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'EQUALS';
+INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
+    SELECT '$favorite', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'EQUALS';
 
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT 'I''m about to add some numbers', NULL, NULL, NULL, id FROM ottobot.commands WHERE text = '$add';
@@ -45,6 +47,8 @@ INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'timing_pop', NULL, NULL, id FROM ottobot.commands WHERE text = '$comedy';
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'clear_chat', NULL, NULL, id FROM ottobot.commands WHERE text = '$clear';
+INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
+    SELECT NULL, 'favorite', NULL, NULL, id FROM ottobot.commands WHERE text = '$favorite';
 
 UPDATE ottobot.responses
 SET
