@@ -43,20 +43,22 @@ class FunctionExecutor():
                 counts[r.command_id] += 1
             else:
                 counts[r.command_id] = 1
-
-            if counts[r.command_id] == fav_count:
-                fav_list.append(r.command_id)
-            elif counts[r.command_id] > fav_count:
-                fav_list = [r.command_id]
-                fav_count = counts[r.command_id]
+            if r.command_id in parser.commands \
+                and parser.commands[r.command_id].text != parser.prefix + 'createCommand' \
+                and parser.commands[r.command_id].text != parser.prefix + 'deleteCommand' \
+                and parser.commands[r.command_id].text != parser.prefix + 'deleteResponse':
+                if counts[r.command_id] == fav_count:
+                    fav_list.append(r.command_id)
+                elif counts[r.command_id] > fav_count:
+                    fav_list = [r.command_id]
+                    fav_count = counts[r.command_id]
         
         if len(fav_list) > 1:
-            result = message.author.mention + ", your favorite commands are: {0_ ({1} calls each)"
+            result = message.author.mention + ", your favorite commands are: {0} ({1} calls each)"
         else:
             result = message.author.mention + ", your favorite command is: {0} ({1} calls)"
 
         result = result.format(", ".join(parser.commands[cmd_id].text for cmd_id in fav_list), fav_count)
-        
         return (result, True)
 
     async def create_command(self, request_id, response_id, message, bot, parser, web):
