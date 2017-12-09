@@ -1,4 +1,6 @@
 from customSearchEngine import CustomSearchEngine
+from cryptoConverter import CryptoConverter
+from currencyConvert import CurrencyConverter
 import dataContainers
 import globalSettings
 
@@ -215,8 +217,10 @@ class FunctionExecutor():
             result = parser.prefix + "convertHelp"
         else:
             try:
+                _logger.info('test')
                 val = float(split[1])
                 symbol = split[2].upper()
+                _logger.info('converted')
                 base_is_currency = False
                 base_is_crypto = False
 
@@ -225,9 +229,10 @@ class FunctionExecutor():
 
                 if not self.currency_symbols or not self.crypto_symbols:
                     _logger.info('re-populating currency symbolds')
-                    self.currency_symbols = currency.get_symbols()
-                    self.crypto_symbols = crypto.get_symbols()
+                    self.currency_symbols = await currency.get_symbols()
+                    self.crypto_symbols = await crypto.get_symbols()
 
+                _logger.info('populated')
                 if symbol in self.currency_symbols:
                     base_is_currency = True
                 elif symbol in self.crypto_symbols:
@@ -237,29 +242,38 @@ class FunctionExecutor():
 
                 if base_is_currency:
                     result = message.author.mention + ", you have:"
-                    converted = currency.convert(symbol, split[3:])
-                    failed = [i for i in split[3:] if i not in converted]
+                    converted = await currency.convert(symbol, [i.upper() for i in split[3:]])
+                    failed = [i.upper() for i in split[3:] if i.upper() not in converted]
                     if failed:
-                        converted.append(crypto.convert(symbol, failed))
-                        failed = [i for i in failed not in converted]
+                        also_converted = await crypto.convert(symbol, failed)
+                        _logger.info('conv')
+                        for i in also_converted:
+                            converted[i] = also_converted[i]
+                        _logger.info('erted')
+                        failed = [i for i in failed if i not in converted]
+                        _logger.info('bruh')
 
+                    _logger.info('stuff')
                     for i in converted:
-                        result.append("\n\t" + str(val * converted[i]) + " in " + i)
+                        result += "\n\t" + "{:,f}".format(val * converted[i]) + " in " + i
+                    _logger.info('things')
 
                     if failed:
-                        result.append("\nSorry, I didn't recognize: " + ", ".join(failed))
+                        result += "\nSorry, I didn't recognize: " + ", ".join(failed)
 
                 elif base_is_crypto:
                     result = message.author.mention + ", you have:"
-                    converted = crypto.convert(symbol, split[3:])
-                    failed = [i for i in split[3:] if i not in converted]
+                    converted = await crypto.convert(symbol, [i.upper() for i in split[3:]])
+                    failed = [i.upper() for i in split[3:] if i.upper() not in converted]
 
                     for i in converted:
-                        result.append("\n\t" + str(val * converted[i]) + " in " + i)
+                        result += "\n\t" + "{:,f}".format(val * converted[i]) + " in " + i
 
                     if failed:
-                        result.append("\nSorry, I didn't recognize: " + ", ".join(failed))
+                        result += "\nSorry, I didn't recognize: " + ", ".join(failed)
 
-            except Exception as e:
+            except ValueError as e:
                 result = "Could not parse value to convert. Please use decimal notation"
+            except Exception as e:
+                result = "Huh? " + str(e)
         return (result, True)

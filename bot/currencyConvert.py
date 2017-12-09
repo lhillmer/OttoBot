@@ -7,7 +7,7 @@ _logger = logging.getLogger()
 
 class CurrencyConverter():
     def __init__(self, webWrapper):
-        self.rest = ResstWrapper(webWrapper,
+        self.rest = RestWrapper(webWrapper,
             "https://api.fixer.io/latest", {})
 
     async def get_symbols(self):
@@ -15,7 +15,8 @@ class CurrencyConverter():
         #not ideal (USD still hardcoded) but honestly should be fine
         #unless trump changes USD to TD
         result = ['USD']
-        data = json.loads(await self.rest.request('', {'base':'USD'}))
+        response = await self.rest.request('', {'base':'USD'})
+        data = json.loads(await response.text())
 
         for i in data['rates']:
             result.append(i)
@@ -24,11 +25,11 @@ class CurrencyConverter():
 
     async def convert(self, base_type, target_types):
         result = {}
-
-        data = json.loads(await self.rest.request("", {'base': base_type.upper(), 'symbols':target_types.join(',').upper()}))
+        response = await self.rest.request('', {'base':base_type, 'symbols':','.join(target_types)})
+        data = json.loads(await response.text())
         for i in data['rates']:
             if i not in target_types:
                 _logger.error("unexpected value in conversion response: " + i)
             else:
-                result[i] = data[i]
+                result[i] = data['rates'][i]
         return result
