@@ -13,6 +13,10 @@ _logger = logging.getLogger()
 #This also will facilitate the execution of pending responses
 #which don't naturally have a context in the chat parser anymore
 class FunctionExecutor():
+    def __init__(self):
+        self.currency_symbols = []
+        self.crypto_symbols= []
+
     def execute(self, function, request_id, response_id, message, bot, parser, web):
         return getattr(self, function)(request_id, response_id, message, bot, parser, web)
 
@@ -203,3 +207,59 @@ class FunctionExecutor():
             return (await bot.clear_chat(server_id, channel_id), True)
         else:
             return ("Couldn't find server id? I don't really support PMs", False)
+
+    async def convert_money(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ")
+        result = ""
+        if len(split) < 4:
+            result = parser.prefix + "convertHelp"
+        else:
+            try:
+                val = float(split[1])
+                symbol = split[2].upper()
+                base_is_currency = False
+                base_is_crypto = False
+
+                currency = CurrencyConverter(web)
+                crypto = CryptoConverter(web)
+
+                if not self.currency_symbols or not self.crypto_symbols:
+                    _logger.info('re-populating currency symbolds')
+                    self.currency_symbols = currency.get_symbols()
+                    self.crypto_symbols = crypto.get_symbols()
+
+                if symbol in self.currency_symbols:
+                    base_is_currency = True
+                elif symbol in self.crypto_symbols:
+                    base_is_crypto = True
+                else:
+                    result = "I do not recognize base type: " + symbol
+
+                if base_is_currency:
+                    result = message.author.mention + ", you have:"
+                    converted = currency.convert(symbol, split[3:])
+                    failed = [i for i in split[3:] if i not in converted]
+                    if failed:
+                        converted.append(crypto.convert(symbol, failed))
+                        failed = [i for i in failed not in converted]
+
+                    for i in converted:
+                        result.append("\n\t" + str(val * converted[i]) + " in " + i)
+
+                    if failed:
+                        result.append("\nSorry, I didn't recognize: " + ", ".join(failed))
+
+                elif base_is_crypto:
+                    result = message.author.mention + ", you have:"
+                    converted = crypto.convert(symbol, split[3:])
+                    failed = [i for i in split[3:] if i not in converted]
+
+                    for i in converted:
+                        result.append("\n\t" + str(val * converted[i]) + " in " + i)
+
+                    if failed:
+                        result.append("\nSorry, I didn't recognize: " + ", ".join(failed))
+
+            except Exception as e:
+                result = "Could not parse value to convert. Please use decimal notation"
+        return (result, True)
