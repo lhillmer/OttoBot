@@ -8,7 +8,7 @@ import signal
 import functools
 import sys
 
-logging.basicConfig(filename='example.log', level=logging.INFO)
+logging.basicConfig(filename='example.log', level=logging.DEBUG)
 _logger = logging.getLogger()
 
 """what's the difference between these two?"""
@@ -26,6 +26,7 @@ class OttoBot:
         self.discord_task = None
         self.web_task = None
         self.response_checker_task = None
+        self.status_updater_task = None
         self.shutdown_error = False
     
     def start(self):
@@ -50,6 +51,7 @@ class OttoBot:
 
         self.discord_task = ensure_future(self.discord.start())
         self.web_task = ensure_future(self.web.run())
+        self.status_updater_task = ensure_future(self.discord.start_status_updater())
         self.response_checker_task = ensure_future(self.discord.check_pending_responses())
         
         try:
@@ -70,7 +72,7 @@ class OttoBot:
     async def process(self):
         
         while True:
-            await asyncio.wait([self.web_task, self.discord_task, self.response_checker_task], return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait([self.web_task, self.discord_task, self.response_checker_task, self.status_updater_task], return_when=asyncio.FIRST_COMPLETED)
 
 
 def main():

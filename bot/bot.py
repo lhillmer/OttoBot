@@ -26,7 +26,6 @@ class DiscordWrapper(discord.Client):
     def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
-        self.status_update_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
         self.function_executor = FunctionExecutor()
@@ -87,13 +86,24 @@ class DiscordWrapper(discord.Client):
             await asyncio.sleep(10)
     
     async def start_status_updater(self):
+        _logger.info("starting status updater")
         while True:
+            _logger.info("running status update")
             if self.is_closed:
+                _logger.info("closing status updated")
                 return
             
-            status_game = discord.Game(name = self.crypto.convert("BTC", ["USD"])[0], url = "", type = 0)
-            self.change_status(status_game)
+            try:
+                btc_string = await self.crypto.convert("BTC", ["USD"])
+                _logger.info("got btc string" + str(btc_string))
+                await self.change_presence(game=discord.Game(name=btc_string['USD']))
+                _logger.info("status updated")
+
+            except Exception as e:
+                _logger.error("couldn't update status")
+                _logger.error(str(e))
             
+            _logger.info("awaiting next frequency update" + str(self.status_frequency))
             await asyncio.sleep(self.status_frequency)
     
     async def on_message(self, message):
@@ -117,7 +127,6 @@ class DiscordWrapper(discord.Client):
     """this will probably make sense once I understand ensure_future and start_ping"""
     async def on_ready(self):
         self.ping_task = ensure_future(self.start_ping())
-        self.status_update_task = ensure_future(self.start_status_updater())
     
     async def start(self):
         await self.login(self.token)
@@ -127,7 +136,7 @@ class DiscordWrapper(discord.Client):
         
         if self.ping_task and not self.ping_task.done():
             self.ping_task.cancel()
-        
+
         try:
             await self.close()
         except Exception as e:
