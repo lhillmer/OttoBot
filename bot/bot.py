@@ -88,13 +88,12 @@ class DiscordWrapper(discord.Client):
             _logger.error("Failed to get permissions for bot user. Assuming the bot has permissions")
         
         try:
-            if isinstance(message.author, discord.Member):
-                reply_generator = self.chat_parser.get_replies(message, self, self.webWrapper, self.db, self.spam_timeout, self.spam_limit, self.display_response_id)
-                if reply_generator:
-                    async for reply in reply_generator:
-                        if not reply:
-                            continue
-                        await self.handle_reply(message, reply)
+            reply_generator = self.chat_parser.get_replies(message, self, self.webWrapper, self.db, self.spam_timeout, self.spam_limit, self.display_response_id)
+            if reply_generator:
+                async for reply in reply_generator:
+                    if not reply:
+                        continue
+                    await self.handle_reply(message, reply)
         except Exception as e:
             _logger.error("Error handling command: %s", str(e))
 
