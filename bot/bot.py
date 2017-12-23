@@ -1,6 +1,7 @@
 import chatParser
 from postgresWrapper import PostgresWrapper
 from functionExecutor import FunctionExecutor
+from cryptoConverter import CryptoConverter
 
 import discord
 
@@ -25,6 +26,7 @@ class DiscordWrapper(discord.Client):
     def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
+        self.status_update_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
         self.function_executor = FunctionExecutor()
@@ -33,6 +35,9 @@ class DiscordWrapper(discord.Client):
         self.spam_limit = spamLimit
         self.spam_timeout = spamTimeout
         self.display_response_id = displayResponseId
+        #hardcoding because lazy
+        self.status_frequency = 60
+        self.crypto = CryptoConverter(self.webWrapper)
 
     async def clear_chat(self, server_id, channel_id):
         for server in self.servers:
@@ -64,12 +69,14 @@ class DiscordWrapper(discord.Client):
     async def start_ping(self):
         while True:
             if self.is_closed:
+                self.log_exception("Ping closed?")
                 return
             
             try:
                 await self.ws.ping()
             
             except asyncio.CancelledError:
+                self.log_exception("Aborting discord ping task")
                 return
             
             except Exception as e:
@@ -78,7 +85,16 @@ class DiscordWrapper(discord.Client):
                 return
             
             await asyncio.sleep(10)
+    
+    async def start_status_updater(self):
+        while True:
+            if self.is_closed:
+                return
             
+            status_game = discord.Game(name = self.crypto.convert("BTC", ["USD"])[0], url = "", type = 0)
+            self.change_status(status_game)
+            
+            await asyncio.sleep(self.status_frequency)
     
     async def on_message(self, message):
         try:
@@ -102,6 +118,7 @@ class DiscordWrapper(discord.Client):
     """this will probably make sense once I understand ensure_future and start_ping"""
     async def on_ready(self):
         self.ping_task = ensure_future(self.start_ping())
+        self.status_update_task = ensure_future(self.start_status_updater())
     
     async def start(self):
         await self.login(self.token)
