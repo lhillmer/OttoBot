@@ -51,8 +51,9 @@ class OttoBot:
 
         self.discord_task = ensure_future(self.discord.start())
         self.web_task = ensure_future(self.web.run())
-        self.status_updater_task = ensure_future(self.discord.start_status_updater())
         self.response_checker_task = ensure_future(self.discord.check_pending_responses())
+        if (globalSettings.config.get('DEFAULT', 'btc_status') == 'True'):
+            self.status_updater_task = ensure_future(self.discord.start_status_updater())
         
         try:
             self.loop.run_until_complete(self.process())
@@ -70,9 +71,11 @@ class OttoBot:
             ensure_future(self.discord.disconnect(True))
     
     async def process(self):
-        
+        task_list = [self.web_task, self.discord_task, self.response_checker_task]
+        if self.status_updater_task:
+            task_list.append(self.status_updater_task)
         while True:
-            await asyncio.wait([self.web_task, self.discord_task, self.response_checker_task, self.status_updater_task], return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
 
 
 def main():
