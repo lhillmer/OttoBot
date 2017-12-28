@@ -80,6 +80,21 @@ class FunctionExecutor():
         except Exception as e:
             result = "Failed to add command: " + str(e)
 
+
+    async def create_delayed_command(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ", 3)
+        result = ""
+
+        try:
+            type_id = parser.get_command_type_id('EQUALS')
+            queuedMessage = dataContainers.Command([-1, split[2], True, False, True, type_id])
+            delay = float(split[1])
+            
+            when = datetime.datetime.now() + datetime.timedelta(seconds=delay)
+            bot.db.insert_pending_response(request_id, response_id, when, message)
+        except Exception as e:
+            result = "Failed to parse delayed response: " + str(e)
+
         return (result, True)
 
 
