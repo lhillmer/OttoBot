@@ -37,7 +37,7 @@ CREATE TABLE ottobot.requests(
 CREATE TABLE ottobot.pendingresponses(
     id serial NOT NULL,
     requestid int NOT NULL,
-    previousresponse int NOT NULL,
+    nextresponse int NOT NULL,
     stored timestamp,
     execute timestamp NOT NULL,
     message bytea,

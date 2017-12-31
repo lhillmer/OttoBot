@@ -20,7 +20,7 @@ class PendingResponse():
     def __init__(self, raw):
         self.id = raw[0]
         self.request_id = raw[1]
-        self.previous_response = raw[2]
+        self.next_response = raw[2]
         self.stored = raw[3]
         self.execute = raw[4]
         self.message = pickle.loads(raw[5])

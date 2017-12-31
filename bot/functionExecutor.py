@@ -83,19 +83,25 @@ class FunctionExecutor():
 
     async def create_delayed_command(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ", 3)
-        result = ""
+        result = "Roger roger"
 
         try:
-            type_id = parser.get_command_type_id('EQUALS')
-            queuedMessage = dataContainers.Command([-1, split[2], True, False, True, type_id])
+            cmd_id = parser.get_response_by_id(response_id).command_id
+            resp_id = [x for x in parser.responses[cmd_id] if parser.responses[cmd_id][x].text == split[2]]
+            if len(resp_id) == 0:
+                resp = dataContainers.Response([-1, split[2], None, response_id, None, cmd_id])
+                parser.add_command(parser.commands[cmd_id], resp)
+                resp_id = [x for x in parser.responses[cmd_id] if parser.responses[cmd_id][x].text == split[2]][0]
+            else:
+                resp_id = resp_id[0]
             delay = float(split[1])
             
             when = datetime.datetime.now() + datetime.timedelta(seconds=delay)
-            bot.db.insert_pending_response(request_id, response_id, when, message)
+            bot.db.insert_pending_response(request_id, resp_id, when, message)
         except Exception as e:
             result = "Failed to parse delayed response: " + str(e)
 
-        return (result, True)
+        return (result, False)
 
 
     async def delete_command(self, request_id, response_id, message, bot, parser, web):
@@ -211,6 +217,7 @@ class FunctionExecutor():
         maxTime = 10520000
         delay = random.randrange(minTime, maxTime, 1)
         when = datetime.datetime.now() + datetime.timedelta(seconds=delay)
+        next_id = parser.get_response_by_id(response_id).next
         bot.db.insert_pending_response(request_id, response_id, when, message)
         return ("Want to know the secret to good comedy?", False)
 

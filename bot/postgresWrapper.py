@@ -90,7 +90,7 @@ class PostgresWrapper():
     def insert_pending_response(self, requestID, lastResponse, when, message):
         message = copy.deepcopy(message)
         message = pickle.dumps(message)
-        return self._query_wrapper("INSERT INTO ottobot.pendingresponses (requestid, previousresponse, execute, stored, message) values(%s, %s, %s, now(), %s) RETURNING id;", [requestID, lastResponse, when, message])[0][0]
+        return self._query_wrapper("INSERT INTO ottobot.pendingresponses (requestid, nextresponse, execute, stored, message) values(%s, %s, %s, now(), %s) RETURNING id;", [requestID, lastResponse, when, message])[0][0]
 
     def insert_response(self, text, function, previous, commandID):
         result = self._query_wrapper("INSERT INTO ottobot.responses (text, functionname, next, previous, commandid) values (%s, %s, NULL, %s, %s) RETURNING id;", [text, function, previous, commandID])[0][0]

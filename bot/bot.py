@@ -173,12 +173,11 @@ class DiscordWrapper(discord.Client):
                     request = self.db.get_request(response.request_id)
                     _logger.info("handling pending response (%s) for request (%s) for command (%s)", str(response.id), str(request.id), str(request.command_id))
                     if request.command_id in self.chat_parser.commands:
-                        if response.previous_response in self.chat_parser.responses[request.command_id]:
-                            prev = self.chat_parser.responses[request.command_id][response.previous_response]
-                            async for reply in self.chat_parser.get_responses(request.command_id, prev.next, request.id, response.message, self, self.webWrapper, self.display_response_id):
+                        if response.next_response in self.chat_parser.responses[request.command_id]:
+                            async for reply in self.chat_parser.get_responses(request.command_id, response.next_response, request.id, response.message, self, self.webWrapper, self.display_response_id):
                                 await self.handle_reply(response.message, reply)
                         else:
-                            _logger.warn("previous_response (%s) for request (%s) no longer exists. ignoring", str(response.previous_response), str(request.id))
+                            _logger.warn("response (%s) for request (%s) no longer exists. ignoring", str(response.next_response), str(request.id))
                     else:
                         _logger.warn("command for request (%s) is no longer active. ignoring", str(request.id))
                     _logger.info("pending response (%s) handled", str(response.id))
