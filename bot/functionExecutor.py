@@ -97,11 +97,29 @@ class FunctionExecutor():
             delay = float(split[1])
             
             when = datetime.datetime.now() + datetime.timedelta(seconds=delay)
-            bot.db.insert_pending_response(request_id, resp_id, when, message)
+            new_id = bot.db.insert_pending_response(request_id, resp_id, when, message)
+            result += " - " + str(new_id)
         except Exception as e:
             result = "Failed to parse delayed response: " + str(e)
 
         return (result, False)
+    
+    async def delete_pending_response(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ")
+        result = ""
+    
+        if len(split) < 2:
+            result = "Please supply a pending response id"
+        else:
+            try:
+                delayed_id = int(split[1])
+                bot.db.delete_pending_response(delayed_id)
+                result = "Da-Cheated"
+            except Exception as e:
+                result = "Failed to parse delayed response id"
+
+        return (result, True)
+
 
 
     async def delete_command(self, request_id, response_id, message, bot, parser, web):
