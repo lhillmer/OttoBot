@@ -8,26 +8,44 @@ _logger = logging.getLogger()
 class CryptoConverter():
     def __init__(self, webWrapper):
         self.rest = RestWrapper(webWrapper,
-            "https://min-api.cryptocompare.com/data", {})
+            "https://api.coinmarketcap.com", {})
 
     async def get_symbols(self):
-        result = []
-        response = await self.rest.request('/all/coinlist', {})
+        result = {}
+        response = await self.rest.request('/v1/ticker', {})
         data = json.loads(await response.text())
-        if data['Response'] == 'Success':
-            for i in data['Data']:
-                result.append(i)
+        if data:
+            for coin in data:
+                result[coin['symbol']] = coin['id']
         else:
-            _logger.error("Issue with crypto request: " + data['Response'])
+            _logger.error("Issue with crypto request")
         return result
 
-    async def convert(self, base_type, target_types):
-        result = {}
-        response = await self.rest.request("/price", {'fsym': base_type, 'tsyms':','.join(target_types)})
+    async def convert(self, base_type, target_type):
+        result = -1
+        response = await self.rest.request("/v1/ticker/" + base_type, {'convert': target_type.upper()})
         data = json.loads(await response.text())
-        for i in data:
-            if i not in target_types:
-                _logger.error("unexpected value in conversion response: " + i)
-            else:
-                result[i] = data[i]
+        try:
+            result = data[0]['price_' + target_type.lower()]
+        except Exception as e:
+            _logger.error("something happened in conversion: " + str(e))
+        return result
+    
+    async def market_cap(self, coin=None):
+        result = ''
+        
+        if coin is None:
+            response = await self.rest.request("/v1/global", {})
+            data = json.loads(await response.text())
+            try
+                result = data['total_market_cap_usd']
+            except Exception as e:
+                _logger.error("Exception trying to get total market cap: " + str(e))
+        else:
+            response = await self.rest.request("/v1/ticker/" + base_type)
+            try
+                result = data['market_cap_usd']
+            except Exception as e:
+                _logger.error("Exception trying to get coin %s market cap: %s" % (str(coin), str(e)))
+            
         return result

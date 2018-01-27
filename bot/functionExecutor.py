@@ -257,10 +257,8 @@ class FunctionExecutor():
             result = parser.prefix + "convertHelp"
         else:
             try:
-                _logger.info('test')
                 val = float(split[1])
                 symbol = split[2].upper()
-                _logger.info('converted')
                 base_is_currency = False
                 base_is_crypto = False
 
@@ -268,11 +266,9 @@ class FunctionExecutor():
                 crypto = CryptoConverter(web)
 
                 if not self.currency_symbols or not self.crypto_symbols:
-                    _logger.info('re-populating currency symbolds')
                     self.currency_symbols = await currency.get_symbols()
                     self.crypto_symbols = await crypto.get_symbols()
 
-                _logger.info('populated')
                 if symbol in self.currency_symbols:
                     base_is_currency = True
                 elif symbol in self.crypto_symbols:
@@ -286,17 +282,12 @@ class FunctionExecutor():
                     failed = [i.upper() for i in split[3:] if i.upper() not in converted]
                     if failed:
                         also_converted = await crypto.convert(symbol, failed)
-                        _logger.info('conv')
                         for i in also_converted:
                             converted[i] = also_converted[i]
-                        _logger.info('erted')
                         failed = [i for i in failed if i not in converted]
-                        _logger.info('bruh')
 
-                    _logger.info('stuff')
                     for i in converted:
                         result += "\n\t" + "{:,f}".format(val * converted[i]) + " in " + i
-                    _logger.info('things')
 
                     if failed:
                         result += "\nSorry, I didn't recognize: " + ", ".join(failed)
@@ -317,3 +308,23 @@ class FunctionExecutor():
             except Exception as e:
                 result = "Huh? " + str(e)
         return (result, True)
+    
+    async def crypto_market_cap(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ")
+        result = ""
+        coin = None
+        if len(split) > 1:
+            result = split[1]
+            
+        crypto = CryptoConverter(web)
+
+        if not self.crypto_symbols:
+            self.crypto_symbols = await crypto.get_symbols()
+        
+        result = crypto.market_cap(coin)
+        
+        if len(result) == 0:
+            result = "An error occurred getting market cap. Please check the logs"
+        
+        return (result, True)
+        
