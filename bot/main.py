@@ -8,7 +8,7 @@ import signal
 import functools
 import sys
 
-logging.basicConfig(filename='example.log', level=logging.DEBUG)
+logging.basicConfig(filename='example.log', level=logging.INFO)
 _logger = logging.getLogger()
 
 """what's the difference between these two?"""
