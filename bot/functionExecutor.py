@@ -68,17 +68,24 @@ class FunctionExecutor():
         return (result, True)
 
     async def create_command(self, request_id, response_id, message, bot, parser, web):
+        _logger.info("test")
+        _logger.info(str(message.content))
         split = message.content.split(" ", 2)
         result = ""
 
         try:
             type_id = parser.get_command_type_id('EQUALS')
+# TODO bad hardcoded check...but i'm leaving it for now because *fast*
+            if len(split[2]) > 256:
+                raise Exception('Length must be shorter than 256 character')
             newCommand = dataContainers.Command([-1, split[1], True, False, True, type_id])
             newResponse = dataContainers.Response([-1, split[2], None, None, None, -1])
             parser.add_command(newCommand, newResponse)
             result = "Added command: " + newCommand.text
         except Exception as e:
             result = "Failed to add command: " + str(e)
+
+        return (result, True)
 
 
     async def create_delayed_command(self, request_id, response_id, message, bot, parser, web):
