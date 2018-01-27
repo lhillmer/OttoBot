@@ -22,7 +22,7 @@ class CryptoConverter():
         return result
 
     async def convert(self, base_type, target_type):
-        result = ''
+        result = 0
         response = await self.rest.request("/v1/ticker/" + base_type, {'convert': target_type.upper()})
         data = json.loads(await response.text())
         try:
@@ -32,7 +32,7 @@ class CryptoConverter():
         return result
     
     async def market_cap(self, coin=None):
-        result = ''
+        result = -''
         
         if coin is None:
             response = await self.rest.request("/v1/global", {})

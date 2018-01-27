@@ -23,13 +23,13 @@ class CurrencyConverter():
 
         return sorted(result)
 
-    async def convert(self, base_type, target_types):
-        result = {}
-        response = await self.rest.request('', {'base':base_type, 'symbols':','.join(target_types)})
+    async def convert(self, base_type, target_type):
+        result = 0
+        response = await self.rest.request('', {'base':base_type, 'symbols': target_type})
         data = json.loads(await response.text())
         for i in data['rates']:
-            if i not in target_types:
-                _logger.error("unexpected value in conversion response: " + i)
+            if i != target_type:
+                _logger.warning("unexpected value in conversion response: " + i)
             else:
-                result[i] = data['rates'][i]
+                result = data['rates'][i]
         return result

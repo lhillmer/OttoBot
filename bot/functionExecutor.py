@@ -281,43 +281,44 @@ class FunctionExecutor():
                     _logger.info(str(self.crypto_symbols))
                     _logger.info('done populating')
 
-                if from_symbol in self.currency_symbols:
-                    base_is_currency = True
-                elif to_symbol in self.crypto_symbols:
-
-                elif from_symbol in self.crypto_symbols:
+                if from_symbol in self.crypto_symbols:
                     base_is_crypto = True
+                elif from_symbol in self.currency_symbols:
+                    base_is_currency = True
                 else:
                     result = "I do not recognize base type: " + from_symbol
 
+                if to_symbol in self.crypto_symbols:
+                    if base_is_currency:
+                        base_is_crypto = True
+                        do_invert = True
+                        to_symbol, from_symbol = from_symbol, to_symbol
+                elif to_symbol in self.currency_symbols:
+                    pass
+                else:
+                    result += "I do not recognize target type: " + to_symbol
+
+                if result:
+                    return (result, True)
+
                 if base_is_currency:
-                    result = message.author.mention + ", you have:"
+                    result = message.author.mention + ", you have "
                     converted = await currency.convert(from_symbol, to_symbol)
-                    failed = [i.upper() for i in split[3:] if i.upper() not in converted]
-                    if failed:
-                        also_converted = await crypto.convert(symbol, failed)
-                        for i in also_converted:
-                            converted[i] = also_converted[i]
-                        failed = [i for i in failed if i not in converted]
-
-                    for i in converted:
-                        result += "\n\t" + "{:,f}".format(val * converted[i]) + " in " + i
-
-                    if failed:
-                        result += "\nSorry, I didn't recognize: " + ", ".join(failed)
+                    if converted 
+                        result += "{:,f}".format(val * converted) + " in " + i
+                    else:
+                        result = "Something went wrong :("
 
                 elif base_is_crypto:
-                    result = message.author.mention + ", you have:"
+                    result = message.author.mention + ", you have "
                     converted = await crypto.convert(symbol, split[3].upper())
-                    failed = []
-                    if not converted:
-                        failed = [split[3]]
-
-                    for i in converted:
-                        result += "\n\t" + "{:,f}".format(val * converted[i]) + " in " + i
-
-                    if failed:
-                        result += "\nSorry, I didn't recognize: " + ", ".join(failed)
+                    if converted 
+                        calculated = val * converted
+                        if do_invert and calculated != 0:
+                            calculated = 1/calculated
+                        result += "{:,f}".format(calculated) + " in " + i
+                    else:
+                        result = "Something went wrong :("
 
             except ValueError as e:
                 result = "Could not parse value to convert. Please use decimal notation"
@@ -336,7 +337,9 @@ class FunctionExecutor():
         crypto = CryptoConverter(web)
 
         if not self.crypto_symbols:
+            _logger.info('populating rypto symbols in market_cap')
             self.crypto_symbols = await crypto.get_symbols()
+            _logger.info('done populating')
         
         result = crypto.market_cap(coin)
         
