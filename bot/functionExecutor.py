@@ -291,6 +291,7 @@ class FunctionExecutor():
                 if to_symbol in self.crypto_symbols:
                     if base_is_currency:
                         base_is_crypto = True
+                        base_is_currency = False
                         do_invert = True
                         to_symbol, from_symbol = from_symbol, to_symbol
                 elif to_symbol in self.currency_symbols:
@@ -304,8 +305,8 @@ class FunctionExecutor():
                 if base_is_currency:
                     result = message.author.mention + ", you have "
                     converted = await currency.convert(from_symbol, to_symbol)
-                    if converted 
-                        result += "{:,f}".format(val * converted) + " in " + i
+                    if converted:
+                        result += "{:,.f}".format(val * converted) + " in " + to_symbol
                     else:
                         result = "Something went wrong :("
 
@@ -316,7 +317,7 @@ class FunctionExecutor():
                         calculated = val * converted
                         if do_invert and calculated != 0:
                             calculated = 1/calculated
-                        result += "{:,f}".format(calculated) + " in " + i
+                        result += "{:,f}".format(calculated) + " in " + to_symbol
                     else:
                         result = "Something went wrong :("
 
@@ -329,22 +330,30 @@ class FunctionExecutor():
     
     async def crypto_market_cap(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ")
-        result = ""
+        result = "Total market cap: "
         coin = None
-        if len(split) > 1:
-            result = split[1]
-            
         crypto = CryptoConverter(web)
 
-        if not self.crypto_symbols:
-            _logger.info('populating rypto symbols in market_cap')
-            self.crypto_symbols = await crypto.get_symbols()
-            _logger.info('done populating')
+        if len(split) > 1:
+            coin = split[1].upper()
+
+            if not self.crypto_symbols:
+                _logger.info('populating rypto symbols in market_cap')
+                self.crypto_symbols = await crypto.get_symbols()
+                _logger.info('done populating')
+
+            if coin in self.crypto_symbols:
+                result = coin + " market cap: "
+                coin = self.crypto_symbols[coin]
+            else:
+                return ("Invalid coin name: '%s'" % coin, True)
+            
+        market_cap = await crypto.market_cap(coin)
         
-        result = crypto.market_cap(coin)
-        
-        if len(result) == 0:
+        if market_cap == 0:
             result = "An error occurred getting market cap. Please check the logs"
+        else:
+            result += "{:,.2f}".format(market_cap)
         
         return (result, True)
         
