@@ -20,11 +20,11 @@ class PostgresWrapper():
         self.connection = psycopg2.connect(self.connection_string)
         self.cursor = self.connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
-    def _query_wrapper(self, query, vars=[], doFetch=True, doLog=True):
+    def _query_wrapper(self, query, vars=[], doFetch=True, do_log=True):
         retry = True
         while(retry):
             try:
-                if doLog:
+                if do_log:
                     _logger.info('making Query: ' + query)
                 for v in vars:
                     _logger.info('val: %s', str(v))
@@ -39,7 +39,7 @@ class PostgresWrapper():
                 retry = False
 
     def get_active_commands(self, do_log=True):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;", do_log)
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;", do_log=do_log)
         result = []
         for raw in rawVals:
             result.append(Command(raw))
@@ -64,21 +64,21 @@ class PostgresWrapper():
 
     def get_ready_pending_responses(self):
         #ignore logging on this one query because it happens every 15s
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.pendingresponses WHERE execute <= now();", doLog=False)
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.pendingresponses WHERE execute <= now();", do_log=False)
         result = []
         for raw in rawVals:
             result.append(PendingResponse(raw))
         return result
 
     def get_responses(self, commandID, do_log=True):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.responses WHERE commandid=%s;", [commandID], do_log)
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.responses WHERE commandid=%s;", [commandID], do_log=do_log)
         result = []
         for raw in rawVals:
             result.append(Response(raw))
         return result
 
     def get_command_types(self, do_log=True):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.commandtypes;", do_log)
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.commandtypes;", do_log=do_log)
         result = []
         for raw in rawVals:
             result.append(CommandType(raw))

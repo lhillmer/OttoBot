@@ -22,7 +22,7 @@ class CryptoConverter():
         return result
 
     async def convert(self, base_type, target_type):
-        result = -1
+        result = ''
         response = await self.rest.request("/v1/ticker/" + base_type, {'convert': target_type.upper()})
         data = json.loads(await response.text())
         try:
@@ -37,13 +37,13 @@ class CryptoConverter():
         if coin is None:
             response = await self.rest.request("/v1/global", {})
             data = json.loads(await response.text())
-            try
+            try:
                 result = data['total_market_cap_usd']
             except Exception as e:
                 _logger.error("Exception trying to get total market cap: " + str(e))
         else:
             response = await self.rest.request("/v1/ticker/" + base_type)
-            try
+            try:
                 result = data['market_cap_usd']
             except Exception as e:
                 _logger.error("Exception trying to get coin %s market cap: %s" % (str(coin), str(e)))

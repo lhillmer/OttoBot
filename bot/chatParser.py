@@ -35,6 +35,7 @@ class ChatParser():
     def load_responses_from_database(self, command_id):
         self.responses[command_id] = {}
         for resp in self.db.get_responses(command_id, do_log=False):
+            self.responses[command_id][resp.id] = resp
 
     def get_first_response(self, command_id):
         for r in self.responses[command_id]:

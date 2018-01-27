@@ -265,27 +265,34 @@ class FunctionExecutor():
         else:
             try:
                 val = float(split[1])
-                symbol = split[2].upper()
+                from_symbol = split[2].upper()
+                to_symbol = split[3].upper()
                 base_is_currency = False
                 base_is_crypto = False
+                do_invert = False
 
                 currency = CurrencyConverter(web)
                 crypto = CryptoConverter(web)
 
                 if not self.currency_symbols or not self.crypto_symbols:
+                    _logger.info('populating symbols in convert_money')
                     self.currency_symbols = await currency.get_symbols()
                     self.crypto_symbols = await crypto.get_symbols()
+                    _logger.info(str(self.crypto_symbols))
+                    _logger.info('done populating')
 
-                if symbol in self.currency_symbols:
+                if from_symbol in self.currency_symbols:
                     base_is_currency = True
-                elif symbol in self.crypto_symbols:
+                elif to_symbol in self.crypto_symbols:
+
+                elif from_symbol in self.crypto_symbols:
                     base_is_crypto = True
                 else:
-                    result = "I do not recognize base type: " + symbol
+                    result = "I do not recognize base type: " + from_symbol
 
                 if base_is_currency:
                     result = message.author.mention + ", you have:"
-                    converted = await currency.convert(symbol, [i.upper() for i in split[3:]])
+                    converted = await currency.convert(from_symbol, to_symbol)
                     failed = [i.upper() for i in split[3:] if i.upper() not in converted]
                     if failed:
                         also_converted = await crypto.convert(symbol, failed)
@@ -301,8 +308,10 @@ class FunctionExecutor():
 
                 elif base_is_crypto:
                     result = message.author.mention + ", you have:"
-                    converted = await crypto.convert(symbol, [i.upper() for i in split[3:]])
-                    failed = [i.upper() for i in split[3:] if i.upper() not in converted]
+                    converted = await crypto.convert(symbol, split[3].upper())
+                    failed = []
+                    if not converted:
+                        failed = [split[3]]
 
                     for i in converted:
                         result += "\n\t" + "{:,f}".format(val * converted[i]) + " in " + i
@@ -313,6 +322,7 @@ class FunctionExecutor():
             except ValueError as e:
                 result = "Could not parse value to convert. Please use decimal notation"
             except Exception as e:
+                _logger.error("convert_money exception: " + str(e))
                 result = "Huh? " + str(e)
         return (result, True)
     
