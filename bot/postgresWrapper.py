@@ -38,8 +38,8 @@ class PostgresWrapper():
                     _logger.error("psycopg2 error code: " + str(e.pgcode))
                 retry = False
 
-    def get_active_commands(self):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;")
+    def get_active_commands(self, do_log=True):
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;", do_log)
         result = []
         for raw in rawVals:
             result.append(Command(raw))
@@ -70,15 +70,15 @@ class PostgresWrapper():
             result.append(PendingResponse(raw))
         return result
 
-    def get_responses(self, commandID):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.responses WHERE commandid=%s;", [commandID])
+    def get_responses(self, commandID, do_log=True):
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.responses WHERE commandid=%s;", [commandID], do_log)
         result = []
         for raw in rawVals:
             result.append(Response(raw))
         return result
 
-    def get_command_types(self):
-        rawVals = self._query_wrapper("SELECT * FROM ottobot.commandtypes;")
+    def get_command_types(self, do_log=True):
+        rawVals = self._query_wrapper("SELECT * FROM ottobot.commandtypes;", do_log)
         result = []
         for raw in rawVals:
             result.append(CommandType(raw))

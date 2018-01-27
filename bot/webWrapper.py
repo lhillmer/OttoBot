@@ -33,7 +33,7 @@ class WebWrapper():
         with async_timeout.timeout(timeout):
             async with self.session.get(url) as response:
                 _logger.info("got response from [" + url + "] with status: " + str(response.status))
-                _logger.info(await response.text())
+                await response.text()
                 return response
 
     async def singleUseSession(self, url, timeout):
@@ -45,11 +45,9 @@ class WebWrapper():
         return await task
 
     async def queueRequest(self, url, timeout):
-        _logger.info("queueing up request for url [" + url + "]")
         coro = self.fetch(url, timeout)
         self.requests.append(coro)
         result = await coro
-        _logger.info("request for url[" + url + "] has popped")
         return result
 
     '''this code might be totally awful. I still don't fully understand async shenanigans'''

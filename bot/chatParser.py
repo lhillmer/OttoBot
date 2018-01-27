@@ -24,19 +24,17 @@ class ChatParser():
         self.commands = {}
         self.responses = {}
         
-        for ct in self.db.get_command_types():
+        for ct in self.db.get_command_types(do_log=False):
             self.command_types[ct.id] = ct
         
-        for cmd in self.db.get_active_commands():
+        for cmd in self.db.get_active_commands(do_log=False):
             self.commands[cmd.id] = cmd
             self.load_responses_from_database(cmd.id)
         _logger.info("finished loading")
     
     def load_responses_from_database(self, command_id):
         self.responses[command_id] = {}
-        for resp in self.db.get_responses(command_id):
-            self.responses[command_id][resp.id] = resp
-        _logger.info("done loading responses for command: " + str(command_id))
+        for resp in self.db.get_responses(command_id, do_log=False):
 
     def get_first_response(self, command_id):
         for r in self.responses[command_id]:
