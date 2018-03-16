@@ -16,11 +16,7 @@ import logging
 
 _logger = logging.getLogger()
 
-"""what's the difference between these two?"""
-if hasattr(asyncio, "async"):
-    ensure_future = asyncio.async
-else:
-    ensure_future = asyncio.ensure_future
+ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
     def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
@@ -46,23 +42,20 @@ class DiscordWrapper(discord.Client):
                         try:
                             if not channel.permissions_for(server.me).manage_messages:
                                 return "OttoBot has insufficient permissions to clear this channel"
-                        except Exception as e:
+                        except Exception:
                             _logger.error("Failed to get permissions for clear command. Assuming bot does not have permissions")
                             return "OttoBot has insufficient permissions to clear this channel"
                         def is_not_pinned(m):
                             return not m.pinned
-                        await self.purge_from(message.channel, check=is_not_pinned)
+                        await self.purge_from(channel_id, check=is_not_pinned)
                         return "Fresh chat for ya!"
                 break
         _logger.error("Could not match server_id (%s) and channel_id (%s)", server_id, channel_id)
         return "Huh, that channel doesn't exist on that server. weird."
 
     
-    def log_exception(self, e, error_msg):
-        error_reason = type(e).__name
-        if e.args:
-            error_reason = "{}: {}".format(error_reason, e.args[0])
-        _logger.error("Discord Error: %s: %s", error_msg, error_reason)
+    def log_exception(self, error_msg):
+        _logger.error("Discord Error: %s", error_msg)
     
     """what is the point of this? I'm assuming it's some sort of keep-alive, but idfk bro"""
     async def start_ping(self):
@@ -78,12 +71,12 @@ class DiscordWrapper(discord.Client):
                 self.log_exception("Aborting discord ping task")
                 return
             
-            except Exception as e:
-                self.log_exception(e, "Unable to send ping")
+            except Exception:
+                self.log_exception("Unable to send ping")
                 ensure_future(self.disconnect())
                 return
             
-            await asyncio.sleep(10)
+            await asyncio.sleep(5)
     
     async def start_status_updater(self):
         _logger.info("starting status updater")
@@ -139,8 +132,8 @@ class DiscordWrapper(discord.Client):
 
         try:
             await self.close()
-        except Exception as e:
-            self.log_exception(e, "Error when disconnecting")
+        except Exception:
+            self.log_exception("Error when disconnecting")
     
     async def handle_reply(self, message, reply):
         if not reply:
@@ -149,24 +142,24 @@ class DiscordWrapper(discord.Client):
             #max number of chars discord allows in a message
             max_length = 1500
             reply_list = []
-            next = reply
-            while len(next) > max_length:
-                newline = next.rfind('\n')
+            next_reply = reply
+            while len(next_reply) > max_length:
+                newline = next_reply.rfind('\n')
                 if newline == -1:
-                    reply_list.append(next[0:max_length])
-                    next = next[max_length:]
+                    reply_list.append(next_reply[0:max_length])
+                    next_reply = next_reply[max_length:]
                 else:
-                    reply_list.append(next[0:newline])
-                    next = next[newline+1:]
-            reply_list.append(next)
+                    reply_list.append(next_reply[0:newline])
+                    next_reply = next_reply[newline+1:]
+            reply_list.append(next_reply)
             for r in reply_list:
                 await self.send_message(message.channel, r)
     
     async def check_pending_responses(self):
         _logger.info("Staring pending response checker")
         while True:
-            #only check every 15 seconds
-            await asyncio.sleep(15)
+            #only check every 5 seconds
+            await asyncio.sleep(5)
             try:
                 responses = self.db.get_ready_pending_responses()
                 for response in responses:

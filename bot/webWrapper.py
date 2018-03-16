@@ -25,7 +25,7 @@ class WebWrapper():
                 await req
 
             #let other async tasks run
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(5)
 
 
     async def fetch(self, url, timeout):
@@ -69,7 +69,7 @@ class RestWrapper():
         self.url = baseURL
         self.parameters = requiredParameters
 
-    async def request(self, endpoint, keyList, timeout=10):
+    async def request(self, endpoint, keyList, timeout=15):
         url = self.url + endpoint
 
         keyList.update(self.parameters)

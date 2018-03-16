@@ -11,11 +11,7 @@ import sys
 logging.basicConfig(filename='example.log', level=logging.INFO)
 _logger = logging.getLogger()
 
-"""what's the difference between these two?"""
-if hasattr(asyncio, "async"):
-    ensure_future = asyncio.async
-else:
-    ensure_future = asyncio.ensure_future
+ensure_future = asyncio.ensure_future
 
 
 class OttoBot:
@@ -68,14 +64,14 @@ class OttoBot:
         self.shutdown_error = is_error
         
         if self.discord_task and not self.discord_task.done():
-            ensure_future(self.discord.disconnect(True))
+            ensure_future(self.discord.disconnect())
     
     async def process(self):
         task_list = [self.web_task, self.discord_task, self.response_checker_task]
         if self.status_updater_task:
             task_list.append(self.status_updater_task)
         while True:
-            await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
+            await asyncio.wait(task_list, return_when=asyncio.ALL_COMPLETED)
 
 
 def main():

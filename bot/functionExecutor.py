@@ -312,8 +312,8 @@ class FunctionExecutor():
 
                 elif base_is_crypto:
                     result = message.author.mention + ", you have "
-                    converted = await crypto.convert(symbol, split[3].upper())
-                    if converted 
+                    converted = await crypto.convert(from_symbol, split[3].upper())
+                    if converted:
                         calculated = val * converted
                         if do_invert and calculated != 0:
                             calculated = 1/calculated
