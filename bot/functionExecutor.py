@@ -122,7 +122,7 @@ class FunctionExecutor():
                 delayed_id = int(split[1])
                 bot.db.delete_pending_response(delayed_id)
                 result = "Da-Cheated"
-            except Exception as e:
+            except Exception:
                 result = "Failed to parse delayed response id"
 
         return (result, True)
@@ -138,7 +138,7 @@ class FunctionExecutor():
                 if len(split) > 2:
                     try:
                         index = int(split[2])
-                    except Exception as e:
+                    except Exception:
                         result = split[2] + " is not a valid index"
                         break
                 if parser.commands[c].removable:
@@ -243,7 +243,7 @@ class FunctionExecutor():
         delay = random.randrange(minTime, maxTime, 1)
         when = datetime.datetime.now() + datetime.timedelta(seconds=delay)
         next_id = parser.get_response_by_id(response_id).next
-        bot.db.insert_pending_response(request_id, response_id, when, message)
+        bot.db.insert_pending_response(request_id, next_id, when, message)
         return ("Want to know the secret to good comedy?", False)
 
     async def timing_pop(self, request_id, response_id, message, bot, parser, web):
