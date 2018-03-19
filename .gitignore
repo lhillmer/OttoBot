@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# ignore the file with the api key :kappa:
+otto.ini
+
 # C extensions
 *.so
 

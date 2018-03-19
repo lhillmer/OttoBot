@@ -218,7 +218,30 @@ class FunctionExecutor():
             result = "Please specify a game"
         else:
             cse = CustomSearchEngine(web,
-                    globalSettings.config.get('DEFAULT', 'cse_cx'),
+                    globalSettings.config.get('DEFAULT', 'cse_cx_steam'),
+                    globalSettings.config.get('DEFAULT', 'cse_key'))
+
+            response = await cse.search(split[1])
+            if response.status != 200:
+                if response.error_message:
+                    result = response.error_message + " "
+                result += "(Http status: " + str(response.status) + ")"
+            elif len(response.items) == 0:
+                result = "Found no responses for query"
+            else:
+                result = response.items[0].title + ": " + response.items[0].link
+
+        return (result, True)
+
+
+    async def find_xkcd_comic(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ", 1)
+        result = ""
+        if len(split) == 1:
+            result = "Please specify a keyword"
+        else:
+            cse = CustomSearchEngine(web,
+                    globalSettings.config.get('DEFAULT', 'cse_cx_xkcd'),
                     globalSettings.config.get('DEFAULT', 'cse_key'))
 
             response = await cse.search(split[1])
