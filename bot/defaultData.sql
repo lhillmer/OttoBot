@@ -22,6 +22,8 @@ INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtyp
     SELECT '$favorite', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'EQUALS';
 INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
     SELECT '$xkcd', FALSE, FALSE, TRUE,  id FROM ottobot.commandtypes WHERE name = 'STARTS_WITH';
+INSERT INTO ottobot.commands (text, removable, casesensitive, active, commandtypeid)
+    SELECT '$stockInfo', FALSE, FALSE, TRUE, id FROM ottobot.commandtypes WHERE name = 'STARTS_WITH';
 
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT 'I''m about to add some numbers', NULL, NULL, NULL, id FROM ottobot.commands WHERE text = '$add';
@@ -53,6 +55,8 @@ INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'favorite', NULL, NULL, id FROM ottobot.commands WHERE text = '$favorite';
 INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
     SELECT NULL, 'find_xkcd_comic', NULL, NULL, id FROM ottobot.commands WHERE text = '$xkcd';
+INSERT INTO ottobot.responses (text, functionname, next, previous, commandid)
+    SELECT NULL, 'stock_data', NULL, NULL, id FROM ottobot.commands WHERE text = '$stockInfo';
 
 UPDATE ottobot.responses
 SET

@@ -1,6 +1,7 @@
 from customSearchEngine import CustomSearchEngine
 from cryptoConverter import CryptoConverter
 from currencyConvert import CurrencyConverter
+from stockInfo import StockInfo
 import dataContainers
 import globalSettings
 
@@ -361,9 +362,7 @@ class FunctionExecutor():
             coin = split[1].upper()
 
             if not self.crypto_symbols:
-                _logger.info('populating rypto symbols in market_cap')
                 self.crypto_symbols = await crypto.get_symbols()
-                _logger.info('done populating')
 
             if coin in self.crypto_symbols:
                 result = coin + " market cap: "
@@ -377,6 +376,32 @@ class FunctionExecutor():
             result = "An error occurred getting market cap. Please check the logs"
         else:
             result += "{:,.2f}".format(market_cap)
+        
+        return (result, True)
+    
+    async def stock_data(self, request_id, response_id, message, bot, parser, web):
+        split = message.content.split(" ")
+        result = "Stock Data (%s):\n"
+        symbol = None
+        symbol_data = None
+        error_info = None
+        stock_info = StockInfo(web, globalSettings.config.get('DEFAULT', 'alphavantage_key'))
+
+        if len(split) > 1:
+            symbol = split[1].upper()
+            try:
+                symbol_data = await stock_info.daily_values(symbol)
+                # if we got data back without an error, throw the symbol into result
+                result = result % symbol
+            except Exception as e:
+                error_info = str(e)
+        
+        if error_info is not None:
+            result = error_info
+        elif symbol_data != None:
+            result += '\n'.join([str(x) + ": `" + str(symbol_data[x]) + "`" for x in symbol_data])
+        else:
+            result = "An error occurred getting stock data."
         
         return (result, True)
         
