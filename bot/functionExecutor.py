@@ -399,7 +399,9 @@ class FunctionExecutor():
         if error_info is not None:
             result = error_info
         elif symbol_data != None:
-            result += '\n'.join([str(x) + ": `" + str(symbol_data[x]) + "`" for x in symbol_data])
+            prefix_len = max([len(x) for x in symbol_data]) - 3
+            # skip the first 3 characters of the key, because they *should* be '#. '
+            result += '\n'.join(["`" + str(x)[3:].ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
         else:
             result = "An error occurred getting stock data."
         
