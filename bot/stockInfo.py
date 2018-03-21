@@ -18,8 +18,9 @@ class StockInfo():
         self.input_mapping = {
             'live': ('TIME_SERIES_INTRADAY', {'interval': '1min'}, 'Time Series (1min)', self.get_last_minutes, {}, False),
             'daily': ('TIME_SERIES_DAILY', {}, 'Time Series (Daily)', self.get_last_days, {}, False),
-            'weekly': ('TIME_SERIES_WEEKLY', {}, 'Weekly Time Series', self.get_last_days, {'count': 5}, True),
-            'monthly': ('TIME_SERIES_MONTHLY', {}, 'Monthly Time Series', self.get_last_months, {}, False),
+            'weekly': ('TIME_SERIES_WEEKLY', {}, 'Weekly Time Series', self.get_last_days, {'count': 5}, self.accumulate_data),
+            'monthly': ('TIME_SERIES_MONTHLY', {}, 'Monthly Time Series', self.get_last_months, {}, None),
+            'moving_average': ('TIME_SERIES_DAILY', {}, 'Time Series (Daily)', self.get_last_days, {'count': 30}, self.moving_average),
         }
         self.default_timing = 'live'
         self.open_key = '1. open'
@@ -70,7 +71,7 @@ class StockInfo():
         
         return result
     
-    def accumulate_data(self, data_list):
+    def accumulate_data(self, data_list, average=False):
         # assumes data is sorted newest first
         result = {
             self.open_key: data_list[-1][self.open_key],
@@ -84,7 +85,17 @@ class StockInfo():
         result[self.high_key] = high
         result[self.low_key] = low
         return result
+    
+    def moving_average(self, data_list, average=False):
+        to_average = []
+        for data in data_list:
+            to_average.append(float(data[self.close_key]))
 
+        result = sum(to_average) / len(to_average)
+        
+        return {
+            self.close_key: result
+        }
 
     async def daily_values(self, symbol, timing=None, debug=False):
         result = {}
@@ -127,7 +138,7 @@ class StockInfo():
             else:
                 _logger.warn("couldn't find key: " + str(key))
         
-        result.update(self.accumulate_data(cumulative))
+        result.update(api_stuff[5](cumulative))
         if debug:
             result[self.range_key] = ', '.join(cumulative_keys)
         return result
