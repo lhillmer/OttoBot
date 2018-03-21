@@ -18,7 +18,7 @@ class StockInfo():
         self.input_mapping = {
             'live': ('TIME_SERIES_INTRADAY', {'interval': '1min'}, 'Time Series (1min)', self.get_last_minutes, {}, False),
             'daily': ('TIME_SERIES_DAILY', {}, 'Time Series (Daily)', self.get_last_days, {}, False),
-            'weekly': ('TIME_SERIES_WEEKLY', {}, 'Weekly Time Series', self.get_last_days, {'count': 5}, self.accumulate_data),
+            'duration': ('TIME_SERIES_DAILY', {}, 'Time Series (Daily)', self.get_last_days, {'count': 5}, self.accumulate_data),
             'monthly': ('TIME_SERIES_MONTHLY', {}, 'Monthly Time Series', self.get_last_months, {}, None),
             'moving_average': ('TIME_SERIES_DAILY', {}, 'Time Series (Daily)', self.get_last_days, {'count': 30}, self.moving_average),
         }
@@ -30,6 +30,8 @@ class StockInfo():
         self.volume_key = '5. volume'
         self.warning_key = '0. warnings'
         self.range_key = '6. ranges'
+        self.debug = 'debug'
+        self.count = 'count'
 
     @staticmethod
     def is_market_live(time=None):
@@ -37,7 +39,7 @@ class StockInfo():
             time = datetime.datetime.now(pytz.timezone('EST5EDT'))
         return (time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16
 
-    def get_last_minutes(self):
+    def get_last_minutes(self, **kwargs):
         result = []
         time = datetime.datetime.now(pytz.timezone('EST5EDT'))
         if not self.is_market_live(time):
@@ -50,7 +52,10 @@ class StockInfo():
         
         return result
     
-    def get_last_days(self, count=2):
+    def get_last_days(self, **kwargs):
+        count = 2
+        if self.count in kwargs:
+            count = kwargs[self.count]
         result = []
         time = datetime.datetime.now(pytz.timezone('EST5EDT'))
         while len(result) < count:
@@ -61,7 +66,7 @@ class StockInfo():
         
         return result
     
-    def get_last_months(self):
+    def get_last_months(self, **kwargs):
         result = []
         time = datetime.datetime.now(pytz.timezone('EST5EDT'))
         result.append(time.strftime(self.date_format))
@@ -71,7 +76,7 @@ class StockInfo():
         
         return result
     
-    def accumulate_data(self, data_list, average=False):
+    def accumulate_data(self, data_list, extra=[]):
         # assumes data is sorted newest first
         result = {
             self.open_key: data_list[-1][self.open_key],
@@ -86,7 +91,7 @@ class StockInfo():
         result[self.low_key] = low
         return result
     
-    def moving_average(self, data_list, average=False):
+    def moving_average(self, data_list, extra=[]):
         to_average = []
         for data in data_list:
             to_average.append(float(data[self.close_key]))
@@ -97,7 +102,7 @@ class StockInfo():
             self.close_key: result
         }
 
-    async def daily_values(self, symbol, timing=None, debug=False):
+    async def daily_values(self, symbol, timing=None, extra=[]):
         result = {}
         api_stuff = self.input_mapping[self.default_timing]
         if timing:
@@ -106,6 +111,17 @@ class StockInfo():
                 api_stuff = self.input_mapping[timing]
             else:
                 result[self.warning_key] = 'recognized timings are (%s). Defaulting to %s' % (', '.join([x for x in self.input_mapping]), self.default_timing)
+        
+        count = -1
+        for e in extra:
+            try:
+                test = int(e)
+                test = max(test, 1)
+                test = min(test, 99)
+                count = test
+                break
+            except Exception:
+                pass
         
         api_keys = copy.copy(api_stuff[1])
         api_keys['function'] = api_stuff[0]
@@ -121,14 +137,17 @@ class StockInfo():
         except KeyError as e:
             raise KeyError(e, 'Well, I certainly wasn\'t excpecting that structure')
         # only grab today's data
-        keys = api_stuff[3](**api_stuff[4])
+        params = copy.copy(api_stuff[4])
+        if count != -1:
+            params['count'] = count
+        keys = api_stuff[3](**params)
         cumulative = []
         cumulative_keys = []
         for key in keys:
             if key in data:
                 if not api_stuff[5]:
                     result.update(data[key])
-                    if debug:
+                    if self.debug in extra:
                         result[self.range_key] = key
                     del result[self.volume_key]
                     return result
@@ -139,6 +158,6 @@ class StockInfo():
                 _logger.warn("couldn't find key: " + str(key))
         
         result.update(api_stuff[5](cumulative))
-        if debug:
+        if self.debug in extra:
             result[self.range_key] = ', '.join(cumulative_keys)
         return result

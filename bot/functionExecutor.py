@@ -390,14 +390,13 @@ class FunctionExecutor():
         if len(split) > 1:
             symbol = split[1].upper()
             timing = None
-            debug = False
+            extra = []
             if len(split) > 2:
-                timing = split[1].lower()
-                symbol = split[2].upper()
-                debug = len(split) > 3 and split[3] == 'debug'
+                timing = split[2].lower()
+                if len(split) > 3:
+                    extra = split[3:]
             try:
-                symbol_data = await stock_info.daily_values(symbol, timing=timing, debug=debug)
-                _logger.warn('asdfasdfasdf')
+                symbol_data = await stock_info.daily_values(symbol, timing=timing, extra=extra)
                 # if we got data back without an error, throw the symbol into result
                 result = result % symbol
             except Exception as e:
