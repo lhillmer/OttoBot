@@ -389,8 +389,15 @@ class FunctionExecutor():
 
         if len(split) > 1:
             symbol = split[1].upper()
+            timing = None
+            debug = False
+            if len(split) > 2:
+                timing = split[1].lower()
+                symbol = split[2].upper()
+                debug = len(split) > 3 and split[3] == 'debug'
             try:
-                symbol_data = await stock_info.daily_values(symbol)
+                symbol_data = await stock_info.daily_values(symbol, timing=timing, debug=debug)
+                _logger.warn('asdfasdfasdf')
                 # if we got data back without an error, throw the symbol into result
                 result = result % symbol
             except Exception as e:
@@ -401,7 +408,7 @@ class FunctionExecutor():
         elif symbol_data != None:
             prefix_len = max([len(x) for x in symbol_data]) - 3
             # skip the first 3 characters of the key, because they *should* be '#. '
-            result += '\n'.join(["`" + str(x)[3:].ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
+            result += "`" + '\n'.join([str(x)[3:].ljust(prefix_len) + ": " + str(symbol_data[x]) for x in symbol_data]) + "`"
         else:
             result = "An error occurred getting stock data."
         
