@@ -381,35 +381,52 @@ class FunctionExecutor():
     
     async def stock_data(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ")
-        result = "Stock Data (%s):\n"
+        result = "Stock Data (%s, %s):\n"
         symbol = None
         symbol_data = None
         error_info = None
-        stock_info = StockInfo(web, globalSettings.config.get('DEFAULT', 'alphavantage_key'))
+        stock_info = StockInfo(web)
 
         if len(split) > 1:
             symbol = split[1].upper()
-            timing = None
-            extra = []
+            # default to 'live' timing
+            timing = 'live'
+            duration = -1
+            debug = False
             if len(split) > 2:
                 timing = split[2].lower()
                 if len(split) > 3:
                     extra = split[3:]
+                    if 'debug' in extra:
+                        debug = True
+                    for s in extra:
+                        if s.isdigit():
+                            duration = int(s)
+                            break
+                
             try:
-                symbol_data = await stock_info.daily_values(symbol, timing=timing, extra=extra)
-                # if we got data back without an error, throw the symbol into result
-                result = result % symbol
+                symbol_data = {}
+                result = result % (symbol, timing)
+                _logger.warn('timing!!!!! ' + timing)
+                if timing == 'live':
+                    symbol_data = await stock_info.live(symbol, debug)
+                elif timing == 'daily':
+                    symbol_data = await stock_info.daily(symbol, debug)
+                elif timing == 'duration':
+                    symbol_data = await stock_info.duration(symbol, duration, debug)
+                elif timing == 'moving_average':
+                    symbol_data = await stock_info.moving_average(symbol, duration, debug)
             except Exception as e:
                 error_info = str(e)
-        
-        if error_info is not None:
-            result = error_info
-        elif symbol_data != None:
-            prefix_len = max([len(x) for x in symbol_data]) - 3
+        if symbol_data != None:
+            prefix_len = max([len(x) for x in symbol_data])
             # skip the first 3 characters of the key, because they *should* be '#. '
-            result += "`" + '\n'.join([str(x)[3:].ljust(prefix_len) + ": " + str(symbol_data[x]) for x in symbol_data]) + "`"
+            result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
         else:
             result = "An error occurred getting stock data."
+            
+        if error_info is not None:
+            result = error_info
         
         return (result, True)
         

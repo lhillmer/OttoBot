@@ -69,7 +69,7 @@ class RestWrapper():
         self.url = baseURL
         self.parameters = requiredParameters
 
-    async def request(self, endpoint, keyList, timeout=15):
+    async def request(self, endpoint, keyList, timeout=25):
         url = self.url + endpoint
 
         keyList.update(self.parameters)
