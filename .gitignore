@@ -5,6 +5,9 @@ __pycache__/
 
 # ignore the file with the api key :kappa:
 otto.ini
+vultr*
+.idea/
+.vscode/
 
 # C extensions
 *.so
