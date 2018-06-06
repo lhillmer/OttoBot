@@ -170,7 +170,7 @@ class FunctionExecutor():
             else:
                 result = "Could not find matching response"
              
-        except Exception as e:
+        except Exception:
             result = "Could not parse response id"
 
         return (result, True)
@@ -407,7 +407,6 @@ class FunctionExecutor():
             try:
                 symbol_data = {}
                 result = result % (symbol, timing)
-                _logger.warn('timing!!!!! ' + timing)
                 if timing == 'live':
                     symbol_data = await stock_info.live(symbol, debug)
                 elif timing == 'daily':
