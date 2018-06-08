@@ -32,6 +32,8 @@ class StockInfo():
         self.latest_source_key = 'LatestSource'
         self.base_market_cap_key = 'BaseMarketCap'
         self.company_name_key = 'CompanyName'
+        self.pe_ratio_key = 'PE Ratio'
+        self.change_percent_key = 'Change %'
 
     @staticmethod
     def is_market_live(time=None):
@@ -249,6 +251,8 @@ class StockInfo():
                     self.market_cap_key: self.get_wordy_num(int(data['marketCap'])),
                     self.high_key: data['high'],
                     self.low_key: data['low'],
+                    self.change_percent_key: float(data['changePercent']) * 100,
+                    self.pe_ratio_key: data['peRatio'],
                 }
                 using_close = False
                 if data['latestSource'] == 'Close':

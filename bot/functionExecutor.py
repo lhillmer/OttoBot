@@ -81,6 +81,8 @@ class FunctionExecutor():
                 raise Exception('Length must be shorter than 256 character')
             newCommand = dataContainers.Command([-1, split[1], True, False, True, type_id])
             newResponse = dataContainers.Response([-1, split[2], None, None, None, -1])
+            if newResponse.text.startswith('!tip'):
+                raise Exception("I'm just a poor :ottoBot: trying to scrape together a living. No need to steal my momocoins")
             parser.add_command(newCommand, newResponse)
             result = "Added command: " + newCommand.text
         except Exception as e:
