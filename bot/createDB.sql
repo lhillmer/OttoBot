@@ -46,3 +46,51 @@ CREATE TABLE ottobot.pendingresponses(
     FOREIGN KEY(previousresponse) REFERENCES ottobot.responses(id)
 );
 INSERT INTO ottobot.commandtypes (name) values ('STARTS_WITH'), ('CONTAINS'), ('EQUALS');
+
+CREATE TABLE ottobroker.users(
+    id varchar(256) NOT NULL,
+    created TIMESTAMP NOT NULL,
+    balance NUMERIC(100, 2) NOT NULL,
+    PRIMARY KEY(id)
+);
+CREATE TABLE ottobroker.faketransactiontypes(
+    id serial NOT NULL,
+    txtype varchar(256) NOT NULL,
+    PRIMARY KEY(id)
+);
+CREATE TABLE ottobroker.faketransactions(
+    id serial NOT NULL,
+    txtypeid int NOT NULL,
+    userid varchar(256) NOT NULL,
+    dollaramount NUMERIC(100, 2) NOT NULL,
+    stockamount int NOT NULL,
+    ticker varchar(256) NOT NULL,
+    executed TIMESTAMP NOT NULL,
+    PRIMARY KEY(id),
+    FOREIGN KEY(txtypeid) REFERENCES ottobroker.faketransactiontypes(id),
+    FOREIGN KEY(userid) REFERENCES ottobroker.users(id)
+);
+CREATE TABLE ottobroker.fakestocktypes(
+    id serial NOT NULL,
+    stocktype varchar(256) NOT NULL,
+    PRIMARY KEY(id)
+);
+CREATE TABLE ottobroker.fakestocks(
+    id serial NOT NULL,
+    stocktypeid int NOT NULL,
+    userid varchar(256) NOT NULL,
+    txid int NOT NULL,
+    ticker varchar(256) NOT NULL,
+    acquired TIMESTAMP NOT NULL,
+    PRIMARY KEY(id),
+    FOREIGN KEY(stocktypeid) REFERENCES ottobroker.fakestocktypes(id),
+    FOREIGN KEY(userid) REFERENCES ottoobroker.users(id)
+);
+CREATE TABLE ottobroker.deposits(
+    id serial NOT NULL,
+    userid varchar(256) NOT NULL,
+    amount NUMERIC(100, 2) NOT NULL,
+    reason VARCHAR(256),
+    PRIMARY KEY(id),
+    FOREIGN KEY(userid) REFERENCES ottobroker.userid
+)
