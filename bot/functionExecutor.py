@@ -1,6 +1,5 @@
 from customSearchEngine import CustomSearchEngine
 from cryptoConverter import CryptoConverter
-from currencyConvert import CurrencyConverter
 from stockInfo import StockInfo
 import dataContainers
 import globalSettings
@@ -16,10 +15,8 @@ _logger = logging.getLogger()
 #This also will facilitate the execution of pending responses
 #which don't naturally have a context in the chat parser anymore
 class FunctionExecutor():
-    def __init__(self, currency_api_key):
-        self.currency_symbols = []
+    def __init__(self):
         self.crypto_symbols= []
-        self._currency_api_key = currency_api_key
 
     def execute(self, function, request_id, response_id, message, bot, parser, web):
         return getattr(self, function)(request_id, response_id, message, bot, parser, web)
@@ -294,11 +291,7 @@ class FunctionExecutor():
                 val = float(split[1])
                 from_symbol = split[2].upper()
                 to_symbol = split[3].upper()
-                base_is_currency = False
-                base_is_crypto = False
-                do_invert = False
 
-                currency = CurrencyConverter(web, self._currency_api_key)
                 crypto = CryptoConverter(web)
 
                 if not self.crypto_symbols:
@@ -318,8 +311,6 @@ class FunctionExecutor():
                 converted = await crypto.convert(self.crypto_symbols[from_symbol], to_symbol)
                 if converted:
                     calculated = val * converted
-                    if do_invert and calculated != 0:
-                        calculated = 1/calculated
                     result += "{:,f}".format(calculated) + " in " + to_symbol
                 else:
                     result = "Something went wrong :("
