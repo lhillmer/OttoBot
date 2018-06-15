@@ -17,20 +17,22 @@ _logger = logging.getLogger()
 class PostgresWrapper():
     def __init__(self, connectionString):
         self.connection_string = connectionString
-        self.connection = psycopg2.connect(self.connection_string)
-        self.cursor = self.connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
     def _query_wrapper(self, query, vars=[], doFetch=True, do_log=True):
         retry = True
+        connection = None
+        cursor = None
         while(retry):
             try:
+                connection = psycopg2.connect(self.connection_string)
+                cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 if do_log:
                     _logger.info('making Query: ' + query)
                     _logger.info('with vars: {}'.format(vars))
-                self.cursor.execute(query, vars)
-                self.connection.commit()
+                cursor.execute(query, vars)
+                connection.commit()
                 if(doFetch):
-                    return self.cursor.fetchall()
+                    return cursor.fetchall()
                 return
             except psycopg2.InternalError as e:
                 if e.pgcode:
@@ -38,6 +40,11 @@ class PostgresWrapper():
                 if not retry:
                     raise e
                 retry = False
+            finally:
+                if connection != None:
+                    connection.close()
+                if cursor != None:
+                    cursor.close()
 
     def get_active_commands(self, do_log=True):
         rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;", do_log=do_log)
