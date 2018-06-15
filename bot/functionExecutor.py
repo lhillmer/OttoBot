@@ -16,9 +16,10 @@ _logger = logging.getLogger()
 #This also will facilitate the execution of pending responses
 #which don't naturally have a context in the chat parser anymore
 class FunctionExecutor():
-    def __init__(self):
+    def __init__(self, currency_api_key):
         self.currency_symbols = []
         self.crypto_symbols= []
+        self._currency_api_key = currency_api_key
 
     def execute(self, function, request_id, response_id, message, bot, parser, web):
         return getattr(self, function)(request_id, response_id, message, bot, parser, web)
@@ -297,61 +298,38 @@ class FunctionExecutor():
                 base_is_crypto = False
                 do_invert = False
 
-                currency = CurrencyConverter(web)
+                currency = CurrencyConverter(web, self._currency_api_key)
                 crypto = CryptoConverter(web)
 
-                if not self.currency_symbols or not self.crypto_symbols:
+                if not self.crypto_symbols:
                     _logger.info('populating symbols in convert_money')
-                    self.currency_symbols = await currency.get_symbols()
                     self.crypto_symbols = await crypto.get_symbols()
-                    _logger.info(str(self.crypto_symbols))
                     _logger.info('done populating')
 
-                if from_symbol in self.crypto_symbols:
-                    base_is_crypto = True
-                elif from_symbol in self.currency_symbols:
-                    base_is_currency = True
-                else:
-                    result = "I do not recognize base type: " + from_symbol
-
-                if to_symbol in self.crypto_symbols:
-                    if base_is_currency:
-                        base_is_crypto = True
-                        base_is_currency = False
-                        do_invert = True
-                        to_symbol, from_symbol = from_symbol, to_symbol
-                elif to_symbol in self.currency_symbols:
-                    pass
-                else:
-                    result += "I do not recognize target type: " + to_symbol
+                if from_symbol not in self.crypto_symbols:
+                    result = "I do not recognize base type: {}\n(USD not a valid base type)".format(from_symbol)
+                elif to_symbol not in self.crypto_symbols and to_symbol != 'USD':
+                    result = "I do not recognize target type: {}".format(to_symbol)
 
                 if result:
                     return (result, True)
 
-                if base_is_currency:
-                    result = message.author.mention + ", you have "
-                    converted = await currency.convert(from_symbol, to_symbol)
-                    if converted:
-                        result += "{:,.f}".format(val * converted) + " in " + to_symbol
-                    else:
-                        result = "Something went wrong :("
-
-                elif base_is_crypto:
-                    result = message.author.mention + ", you have "
-                    converted = await crypto.convert(self.crypto_symbols[from_symbol], split[3].upper())
-                    if converted:
-                        calculated = val * converted
-                        if do_invert and calculated != 0:
-                            calculated = 1/calculated
-                        result += "{:,f}".format(calculated) + " in " + to_symbol
-                    else:
-                        result = "Something went wrong :("
+                result = message.author.mention + ", you have "
+                converted = await crypto.convert(self.crypto_symbols[from_symbol], to_symbol)
+                if converted:
+                    calculated = val * converted
+                    if do_invert and calculated != 0:
+                        calculated = 1/calculated
+                    result += "{:,f}".format(calculated) + " in " + to_symbol
+                else:
+                    result = "Something went wrong :("
 
             except ValueError as e:
+                _logger.error('something happened man: {}'.format(e))
                 result = "Could not parse value to convert. Please use decimal notation"
             except Exception as e:
                 _logger.error("convert_money exception: " + str(e))
-                result = "Huh? " + str(e)
+                result = ":robot: ERROR: " + str(e)
         return (result, True)
     
     async def crypto_market_cap(self, request_id, response_id, message, bot, parser, web):

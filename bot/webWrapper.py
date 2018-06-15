@@ -64,9 +64,11 @@ class WebWrapper():
 
 
 class RestWrapper():
-    def __init__(self, webWrapper, baseURL, requiredParameters={}):
+    def __init__(self, webWrapper, baseURL, requiredParameters=None):
         self.web = webWrapper
         self.url = baseURL
+        if requiredParameters is None:
+            requiredParameters = {}
         self.parameters = requiredParameters
 
     async def request(self, endpoint, keyList, timeout=25):

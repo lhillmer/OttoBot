@@ -19,12 +19,12 @@ _logger = logging.getLogger()
 ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, currency_api_key, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
-        self.function_executor = FunctionExecutor()
+        self.function_executor = FunctionExecutor(currency_api_key)
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
         self.spam_limit = spamLimit

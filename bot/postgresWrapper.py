@@ -26,8 +26,7 @@ class PostgresWrapper():
             try:
                 if do_log:
                     _logger.info('making Query: ' + query)
-                for v in vars:
-                    _logger.info('val: %s', str(v))
+                    _logger.info('with vars: {}'.format(vars))
                 self.cursor.execute(query, vars)
                 self.connection.commit()
                 if(doFetch):
@@ -36,6 +35,8 @@ class PostgresWrapper():
             except psycopg2.InternalError as e:
                 if e.pgcode:
                     _logger.error("psycopg2 error code: " + str(e.pgcode))
+                if not retry:
+                    raise e
                 retry = False
 
     def get_active_commands(self, do_log=True):

@@ -148,7 +148,6 @@ class ChatParser():
     async def get_responses(self, command_id, response_id, request_id, message, bot, web, display_response_id):
         response = self.responses[command_id][response_id]
         while response:
-            _logger.info("getting response: " + str(response.id))
             prefix = ""
             if display_response_id:
                 prefix = "(" + str(response.id) + ") "
