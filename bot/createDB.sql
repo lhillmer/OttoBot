@@ -105,7 +105,7 @@ CREATE SCHEMA IF NOT EXISTS ottobroker;
     INSERT INTO ottobroker.faketransactiontypes (txtype) values ('BUY'), ('SELL'), ('CAPITAL');
     INSERT INTO ottobroker.fakestocktypes (stocktype) values ('REGULAR');
 
-CREATE OR REPLACE FUNCTION CreateUser(_user_id varchar(256), _display_name varchar(256))
+CREATE OR REPLACE FUNCTION ottobroker.createuser(_user_id varchar(256), _display_name varchar(256))
 RETURNS varchar(256) AS $BODY$
     DECLARE
         user_exists int = 0;
@@ -122,9 +122,9 @@ RETURNS varchar(256) AS $BODY$
     $BODY$
 LANGUAGE 'plpgsql' VOLATILE;
 
-CREATE OR REPLACE FUNCTION GiveMoney(_user_id varchar(256), _amount numeric(100, 2))
+CREATE OR REPLACE FUNCTION ottobroker.givemoney(_user_id varchar(256), _amount numeric(100, 2))
 RETURNS int AS $BODY$
-    DECLARE
+    DECLARE 
         user_exists int = 0;
         user_balance numeric(100, 2) = 0;
         txtype_id int = -1;
@@ -143,7 +143,7 @@ RETURNS int AS $BODY$
     $BODY$
 LANGUAGE 'plpgsql' VOLATILE;
 
-CREATE OR REPLACE FUNCTION BuyRegularStock(_ticker varchar(10), _quantity int, _per_cost numeric(100, 2), _user_id varchar(256))
+CREATE OR REPLACE FUNCTION ottobroker.buyregularstock(_user_id varchar(256), _ticker varchar(10), _per_cost numeric(100, 2), _quantity int)
 RETURNS INTEGER AS $BODY$
     DECLARE
         total_cost numeric(100, 2) = -1;
@@ -172,7 +172,7 @@ RETURNS INTEGER AS $BODY$
     $BODY$
 LANGUAGE 'plpgsql' VOLATILE;
 
-CREATE OR REPLACE FUNCTION SellStock(_ticker varchar(10), _quantity int, _per_value numeric(100, 2), _user_id varchar(256))
+CREATE OR REPLACE FUNCTION ottobroker.sellstock(_user_id varchar(256), _ticker varchar(10), _per_value numeric(100, 2), _quantity int)
 RETURNS INTEGER AS $BODY$
     DECLARE
         total_value numeric(100, 2) = -1;

@@ -110,3 +110,15 @@ class PostgresWrapper():
 
     def delete_pending_response(self, pendingResponseID):
         self._query_wrapper("DELETE FROM ottobot.pendingresponses WHERE id=%s;", [pendingResponseID], doFetch=False)
+
+    def create_user(self, user_id, display_name):
+        return self._query_wrapper("SELECT ottobroker.createuser(%s, %s);", [user_id, display_name])
+    
+    def give_money_to_user(self, user_id, amount):
+        return self._query_wrapper("SELECT ottobroker.givemoney(%s, %s);", [user_id, amount])
+    
+    def buy_regular_stock(self, user_id, ticker_symbol, ticker_value, quantity):
+        return self._query_wrapper("SELECT ottobroker.buyregularstock(%s, %s, %s, %s);", [user_id, ticker_symbol, ticker_value, quantity])
+    
+    def sell_stock(self, user_id, ticker_symbol, ticker_value, quantity):
+        return self._query_wrapper("SELECT ottobroker.sellstock(%s, %s, %s, %s);", [user_id, ticker_symbol, ticker_value, quantity])
