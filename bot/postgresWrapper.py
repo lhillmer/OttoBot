@@ -31,20 +31,20 @@ class PostgresWrapper():
                     _logger.info('with vars: {}'.format(vars))
                 cursor.execute(query, vars)
                 connection.commit()
+                result = None
                 if(doFetch):
-                    return cursor.fetchall()
-                return
+                    result = cursor.fetchall()
+                cursor.close()
+                connection.close()
+                return result
             except psycopg2.InternalError as e:
+                cursor.close()
+                connection.close()
                 if e.pgcode:
                     _logger.error("psycopg2 error code: " + str(e.pgcode))
                 if not retry:
                     raise e
                 retry = False
-            finally:
-                if connection != None:
-                    connection.close()
-                if cursor != None:
-                    cursor.close()
 
     def get_active_commands(self, do_log=True):
         rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;", do_log=do_log)
