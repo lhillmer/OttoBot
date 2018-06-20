@@ -17,25 +17,33 @@ _logger = logging.getLogger()
 class PostgresWrapper():
     def __init__(self, connectionString):
         self.connection_string = connectionString
-        self.connection = psycopg2.connect(self.connection_string)
-        self.cursor = self.connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
     
     def _query_wrapper(self, query, vars=[], doFetch=True, do_log=True):
         retry = True
+        connection = None
+        cursor = None
         while(retry):
             try:
+                connection = psycopg2.connect(self.connection_string)
+                cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
                 if do_log:
                     _logger.info('making Query: ' + query)
-                for v in vars:
-                    _logger.info('val: %s', str(v))
-                self.cursor.execute(query, vars)
-                self.connection.commit()
+                    _logger.info('with vars: {}'.format(vars))
+                cursor.execute(query, vars)
+                connection.commit()
+                result = None
                 if(doFetch):
-                    return self.cursor.fetchall()
-                return
+                    result = cursor.fetchall()
+                cursor.close()
+                connection.close()
+                return result
             except psycopg2.InternalError as e:
+                cursor.close()
+                connection.close()
                 if e.pgcode:
                     _logger.error("psycopg2 error code: " + str(e.pgcode))
+                if not retry:
+                    raise e
                 retry = False
 
     def get_active_commands(self, do_log=True):

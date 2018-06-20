@@ -145,10 +145,13 @@ class ChatParser():
         yield message
 
     #helper function to encapsulate response logic (for use with pending responses)
-    async def get_responses(self, command_id, response_id, request_id, message, bot, web, display_response_id):
+    async def get_responses(self, command_id, response_id, request_id, message, bot, web, display_response_id, max_number_of_responses=-1):
         response = self.responses[command_id][response_id]
+        response_count = 0
         while response:
-            _logger.info("getting response: " + str(response.id))
+            response_count += 1
+            if max_number_of_responses != -1 and response_count > max_number_of_responses:
+                break
             prefix = ""
             if display_response_id:
                 prefix = "(" + str(response.id) + ") "
