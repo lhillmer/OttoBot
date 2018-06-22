@@ -115,7 +115,7 @@ RETURNS varchar(256) AS $BODY$
         if user_exists <= 0 THEN
             insert into ottobroker.users (id, displayname, created, balance)
             values (_user_id, _display_name, now(), 0) returning id into result_id;
-            perform GiveMoney(_user_id, 10000.00);
+            perform ottobroker.givemoney(_user_id, 10000.00);
         end if;
         return result_id;
     END;
@@ -183,7 +183,7 @@ RETURNS INTEGER AS $BODY$
         stock_id int = 0;
         _now timestamp = now();
     BEGIN
-        select count(id) into stock_count from ottobroker.fakestocks where userid = _user_id AND ticker = _ticker;
+        select count(id) into stock_count from ottobroker.fakestocks where userid = _user_id AND ticker = _ticker AND sold is Null;
         if stock_count >= _quantity THEN
             total_value := _quantity * _per_value;
             select balance into user_balance from ottobroker.users where id = _user_id;

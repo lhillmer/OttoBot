@@ -54,8 +54,9 @@ class Command():
 class BrokerUser():
     def __init__(self, raw):
         self.id = raw[0]
-        self.display_name = raw[1]
+        self.created = raw[1]
         self.balance = raw[2]
+        self.display_name = raw[3]
 
 class BrokerStock():
     def __init__(self, raw):

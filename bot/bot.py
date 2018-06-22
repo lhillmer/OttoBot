@@ -8,6 +8,7 @@ import discord
 import datetime
 import asyncio
 import logging
+import traceback
 
 """i'm copying a ton of code from here:
     https://github.com/gammafunk/Cerebot/blob/master/cerebot/discord.py
@@ -24,7 +25,7 @@ class DiscordWrapper(discord.Client):
         self.ping_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
-        self.function_executor = FunctionExecutor()
+        self.function_executor = FunctionExecutor(webWrapper, self.db)
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
         self.spam_limit = spamLimit
@@ -114,7 +115,8 @@ class DiscordWrapper(discord.Client):
                         continue
                     await self.handle_reply(message, reply)
         except Exception as e:
-            _logger.error("Error handling command: %s", str(e))
+            _logger.exception(e)
+            await self.send_message(message.channel, 'Ya dun fucked up (Exception: {})'.format(e))
 
     
     """this will probably make sense once I understand ensure_future and start_ping"""

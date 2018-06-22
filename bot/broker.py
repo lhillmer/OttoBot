@@ -17,6 +17,8 @@ class OttoBroker():
         self._user_cache = {}
         self._user_stocks = {}
 
+        self._populate_user_cache()
+
     @staticmethod
     def is_market_live(time=None):
         if time is None:
@@ -25,8 +27,9 @@ class OttoBroker():
     
     async def _get_stock_value(self, ticker_symbol):
         if not self.is_market_live():
-            raise Exception('Can\'t trade after hours')
-        response = await self.rest.request('/stock/%s/quote' % symbol , {})
+            #raise Exception('Can\'t trade after hours')
+            pass
+        response = await self._rest.request('/stock/%s/quote' % ticker_symbol , {})
         unparsed = await response.text()
         data = None
         try:
@@ -50,103 +53,130 @@ class OttoBroker():
     
     def _populate_user_cache(self):
         self._user_cache = {}
-        # get users from db
-        user_list = []
+        user_list = self._db.broker_get_all_users()
 
         for user in user_list:
             self._user_cache[user.id] = user
             self._user_stocks[user.id] = self._load_user_stocks(user.id)
     
     def _update_single_user(self, user_id):
-        # get user from id
-        user = None
+        user = self._db.broker_get_single_user(user_id)
         self._user_cache[user.id] = user
         self._user_stocks[user.id] = self._load_user_stocks(user.id)
     
     def _load_user_stocks(self, user_id):
-        # get stocks from user by id
-        stock_list = []
-        return stock_list
+        stock_list = self._db.broker_get_stocks_by_user(user_id)
+        
+        # create a dictionary of the stocks, grouped by ticker
+        stock_dict = {}
+        for stock in stock_list:
+            if stock.ticker_symbol in stock_dict:
+                stock_dict[stock.ticker_symbol].append(stock)
+            else:
+                stock_dict[stock.ticker_symbol] = [stock]
+
+        return stock_dict
     
     async def _handle_command(self, request_id, response_id, message, bot, parser, web):
         command_args = message.content.split(' ')
         # assumption, first value in message is '$broker'
-        if len(command_args) < 1:
+        if len(command_args) < 2:
             return ('Specify a broker operation, please', False)
         
         command = command_args[1]
         
         if command == 'register':
             if message.author.id in self._user_cache:
-                return ('User {} already exists'.format(self._user_cache[message.author.id].display_name))
-            self._db.create_user(message.author.id, message.author.name)
+                return ('User {} already exists'.format(self._user_cache[message.author.id].display_name), False)
+            self._db.broker_create_user(message.author.id, message.author.name)
             self._update_single_user(message.author.id)
             new_user = self._user_cache[message.author.id]
-            return ('Welcome, {}. You have a starting balance of {.2f}'.format(new_user.display_name, new_user.balance))
+            return ('Welcome, {}. You have a starting balance of {}'.format(new_user.display_name, new_user.balance), True)
+        elif command == 'balance':
+            if message.author.id not in self._user_cache:
+                return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
+            user = self._user_cache[message.author.id]
+            return ('{}, you have a balance of {}'.format(user.display_name, user.balance), True)
+        elif command == 'liststocks':
+            if message.author.id not in self._user_cache:
+                return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
+            user = self._user_cache[message.author.id]
+            stock_string = ''
+            for symbol in self._user_stocks[user.id]:
+                stock_string += '{} {} stocks, '.format(len(self._user_stocks[user.id][symbol]), symbol.upper())
+            if stock_string:
+                stock_string = stock_string[:-2]
+                return ('{}, you have the following stocks: {}'.format(user.display_name, stock_string), True)
+            else:
+                return ('{}, you have no stocks!'.format(user.display_name), True)
+
         elif command == 'buystock':
             if message.author.id not in self._user_cache:
                 return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
             if len(command_args) < 4:
-                return ('Sorry, you don\'t seem to have enough values there for me to parse.')
-            symbol = command_args[3]
-            quantity = command_args[4]
+                return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
+            symbol = command_args[2]
+            quantity = command_args[3]
             # make sure we have a valid quantity
             try:
                 quantity = int(quantity)
             except Exception:
-                return ('No transaction occurred. Couldn\'t convert {} to an int'.format(quantity))
+                return ('No transaction occurred. Couldn\'t convert {} to an int'.format(quantity), False)
             # make sure we can get the cost properly
             try:
                 per_stock_cost = await self._get_stock_value(symbol)
-            except Exception, e:
-                return ('No transaction occurred. Couldn\'t get stock {} value: {}'.format(symbol, e))
+            except Exception as e:
+                return ('No transaction occurred. Couldn\'t get stock {} value: {}'.format(symbol, e), False)
             
             # make sure the user can afford the transaction
             cur_user = self._user_cache[message.author.id]
             if cur_user.balance < (quantity * per_stock_cost):
-                return ('No transaction occurred. Sorry {}, you don\'t have sufficient funds ({.2f}) to buy {} {} stocks at {.2f}'.format(cur_user.display_name,
+                return ('No transaction occurred. Sorry {}, you don\'t have sufficient funds ({}) to buy {} {} stocks at {}'.format(cur_user.display_name,
                     quantity * per_stock_cost, quantity, symbol, per_stock_cost), False)
 
             # make the transaction, and report success
-            result = self.db.buy_regular_stock(cur_user.id, symbol, per_stock_cost, quantity)
+            result = self._db.broker_buy_regular_stock(cur_user.id, symbol, per_stock_cost, quantity)
             if result is not None:
                 # if we succeeded, update the cached user
                 self._update_single_user(cur_user.id)
                 return ('Congratulations {}, you\'re the proud new owner of {} additional {} stocks'.format(cur_user.display_name, quantity, symbol), True)
             else:
-                return ('No transaction occurred. Sorry {}, something went wrong trying to buy the stocks. Go yell at :otto:'.format(cur_user.display_name))
+                return ('No transaction occurred. Sorry {}, something went wrong trying to buy the stocks. Go yell at :otto:'.format(cur_user.display_name), False)
         elif command == 'sellstock':
             if message.author.id not in self._user_cache:
                 return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
             if len(command_args) < 4:
-                return ('Sorry, you don\'t seem to have enough values there for me to parse.')
-            symbol = command_args[3]
-            quantity = command_args[4]
+                return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
+            symbol = command_args[2]
+            quantity = command_args[3]
             # make sure we have a valid quantity
             try:
                 quantity = int(quantity)
             except Exception:
-                return ('No transaction occurred. Couldn\'t convert {} to an int'.format(quantity))
+                return ('No transaction occurred. Couldn\'t convert {} to an int'.format(quantity), False)
             # make sure we can get the cost properly
             try:
                 per_stock_cost = await self._get_stock_value(symbol)
-            except Exception, e:
-                return ('No transaction occurred. Couldn\'t get stock {} value: {}'.format(symbol, e))
+            except Exception as e:
+                return ('No transaction occurred. Couldn\'t get stock {} value: {}'.format(symbol, e), False)
             
             # make sure the user can afford the transaction
             cur_user = self._user_cache[message.author.id]
-            cur_stocks = self._user_stocks[message.author.id]
-            if symbol not in cur_stocks or quantity > cur_stocks[symbol]:
-                return ('No transaction occurred. Sorry {}, you only have {} {} stocks'.format(cur_user.display_name, quantity, symbol), False)
+            cur_stocks = 0
+            if symbol in self._user_stocks[message.author.id]:
+                cur_stocks = len(self._user_stocks[message.author.id][symbol])
+            if quantity > cur_stocks:
+                return ('No transaction occurred. Sorry {}, you only have {} {} stocks'.format(cur_user.display_name, cur_stocks, symbol), False)
 
             # make the transaction, and report success
-            result = self.db.sell_stock(cur_user.id, symbol, per_stock_cost, quantity)
+            result = self._db.broker_sell_stock(cur_user.id, symbol, per_stock_cost, quantity)
             if result is not None:
                 # if we succeeded, update the cached user
                 self._update_single_user(cur_user.id)
-                return ('Congratulations {}, your new balance is {.2f}'.format(cur_user.display_name, cur_user.balance), True)
+                cur_user = self._user_cache[message.author.id]
+                return ('Congratulations {}, your new balance is {}'.format(cur_user.display_name, cur_user.balance), True)
             else:
-                return ('No transaction occurred. Sorry {}, something went wrong trying to sell the stocks. Go yell at :otto:'.format(cur_user.display_name))
+                return ('No transaction occurred. Sorry {}, something went wrong trying to sell the stocks. Go yell at :otto:'.format(cur_user.display_name), False)
         else:
             return ('Did not recognize command: ' + command, False)
     
