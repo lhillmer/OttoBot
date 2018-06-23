@@ -17,6 +17,14 @@ class OttoBroker():
         self._user_cache = {}
         self._user_stocks = {}
 
+        self._command_mapping = {
+            'register': self._handle_register,
+            'balance': self._handle_balance,
+            'liststocks': self._handle_list_stocks,
+            'buystock': self._handle_buy_stock,
+            'sellstock': self._handle_sell_stock
+        }
+
         self._populate_user_cache()
 
     @staticmethod
@@ -25,31 +33,45 @@ class OttoBroker():
             time = datetime.datetime.now(pytz.timezone('EST5EDT'))
         return (time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16
     
-    async def _get_stock_value(self, ticker_symbol):
-        if not self.is_market_live():
-            #raise Exception('Can\'t trade after hours')
-            pass
-        response = await self._rest.request('/stock/%s/quote' % ticker_symbol , {})
-        unparsed = await response.text()
-        data = None
+    @staticmethod
+    def _get_int(string):
+        """
+        This exists only to provide a nicer error message when converting ints. Allows for a more
+        streamlined calling structure
+        """
         try:
-            data = json.loads(unparsed)
+            return int(string)
         except Exception:
-            raise Exception('Failed to convert api result to json')
-        if data is None:
-            raise Exception('Got None from api response')
-        elif not isinstance(data, dict):
-            raise Exception('Unexpected data type ' + str(type(data)))
-        elif self._quote_value_key not in data:
-            raise Exception('Key {} was not in response from api'.format(self._quote_value_key))
-        
-        result = data[self._quote_value_key]
-        if not isinstance(result, float):
+            raise Exception('Couldn\'t convert {} to an integer'.format(string))
+    
+    async def _get_stock_value(self, ticker_symbol):
+        try:
+            if not self.is_market_live():
+                #raise Exception('Can\'t trade after hours')
+                pass
+            response = await self._rest.request('/stock/%s/quote' % ticker_symbol , {})
+            unparsed = await response.text()
+            data = None
             try:
-                result = float(result)
+                data = json.loads(unparsed)
             except Exception:
-                raise Exception('Failed to convert stock value {} to a float')
-        return result
+                raise Exception('Invalid API response: {}'.format(unparsed))
+            if data is None:
+                raise Exception('Got None from api response')
+            elif not isinstance(data, dict):
+                raise Exception('Unexpected data type ' + str(type(data)))
+            elif self._quote_value_key not in data:
+                raise Exception('Key {} was not in response from api'.format(self._quote_value_key))
+            
+            result = data[self._quote_value_key]
+            if not isinstance(result, float):
+                try:
+                    result = float(result)
+                except Exception:
+                    raise Exception('Failed to convert stock value {} to a float')
+            return result
+        except Exception as e:
+            raise Exception('Couldn\'t get stock value: {}'.format(str(e)))
     
     def _populate_user_cache(self):
         self._user_cache = {}
@@ -76,31 +98,74 @@ class OttoBroker():
                 stock_dict[stock.ticker_symbol] = [stock]
 
         return stock_dict
+
+    def _get_user(self, user_id):
+        if user_id in self._user_cache:
+            return self._user_cache[user_id]
+        else:
+            raise Exception('You dn\'t have an account. Create one with `$broker register`')
     
-    async def _handle_command(self, request_id, response_id, message, bot, parser, web):
-        command_args = message.content.split(' ')
-        # assumption, first value in message is '$broker'
-        if len(command_args) < 2:
-            return ('Specify a broker operation, please', False)
-        
-        command = command_args[1]
-        
-        if command == 'register':
-            if message.author.id in self._user_cache:
-                return ('User {} already exists'.format(self._user_cache[message.author.id].display_name), False)
-            self._db.broker_create_user(message.author.id, message.author.name)
-            self._update_single_user(message.author.id)
-            new_user = self._user_cache[message.author.id]
-            return ('Welcome, {}. You have a starting balance of {}'.format(new_user.display_name, new_user.balance), True)
-        elif command == 'balance':
-            if message.author.id not in self._user_cache:
-                return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
-            user = self._user_cache[message.author.id]
-            return ('{}, you have a balance of {}'.format(user.display_name, user.balance), True)
-        elif command == 'liststocks':
-            if message.author.id not in self._user_cache:
-                return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
-            user = self._user_cache[message.author.id]
+    async def _buy_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
+        # make the transaction, and report success
+        result = self._db.broker_buy_regular_stock(user_id, symbol, per_stock_cost, quantity)
+        if result is not None:
+            # if we succeeded, update the cached user
+            self._update_single_user(user_id)
+            return 'Congratulations {}, you\'re the proud new owner of {} additional {} stocks'.format(user_display_name, quantity, symbol)
+        raise Exception('Sorry {}, something went wrong in the database. Go yell at :otto:'.format(user_display_name))
+    
+    async def _handle_buy_stock(self, command_args, message_author):
+        try:
+            user = self._get_user(message_author.id)
+            if len(command_args) < 4:
+                raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+            symbol = command_args[2].upper()
+            quantity = self._get_int(command_args[3])
+            per_stock_cost = await self._get_stock_value(symbol)
+            
+            # make sure the user can afford the transaction
+            cur_user = self._user_cache[message_author.id]
+            if cur_user.balance < (quantity * per_stock_cost):
+                raise Exception('Sorry {}, you don\'t have sufficient funds ({}) to buy {} {} stocks at {}'.format(cur_user.display_name,
+                    quantity * per_stock_cost, quantity, symbol, per_stock_cost))
+
+            return (await self._buy_regular_stock(cur_user.id, cur_user.display_name, symbol, per_stock_cost, quantity), True)
+        except Exception as e:
+            return ('No transaction occured. {}'.format(str(e)), False)
+    
+    async def _sell_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
+        result = self._db.broker_sell_stock(user_id, symbol, per_stock_cost, quantity)
+        if result is not None:
+            # if we succeeded, update the cached user
+            self._update_single_user(user_id)
+            cur_user = self._user_cache[user_id]
+            return 'Congratulations {}, your new balance is {}'.format(user_display_name, cur_user.balance)
+        raise Exception('No transaction occurred. Sorry {}, something went wrong trying to sell the stocks. Go yell at :otto:'.format(user_display_name))
+
+    async def _handle_sell_stock(self, command_args, message_author):
+        try:
+            user = self._get_user(message_author.id)
+            if len(command_args) < 4:
+                return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
+            symbol = command_args[2].upper()
+            quantity = self._get_int(command_args[3])
+            per_stock_cost = await self._get_stock_value(symbol)
+            
+            # make sure the user can afford the transaction
+            cur_user = self._user_cache[message_author.id]
+            cur_stocks = 0
+            if symbol in self._user_stocks[message_author.id]:
+                cur_stocks = len(self._user_stocks[message_author.id][symbol])
+            if quantity > cur_stocks:
+                raise Exception('Sorry {}, you only have {} {} stocks'.format(cur_user.display_name, cur_stocks, symbol))
+
+            return (await self._sell_regular_stock(cur_user.id, cur_user.display_name, symbol, per_stock_cost, quantity), True)
+        except Exception as e:
+            return ('No transaction occurred. {}'.format(str(e)), False)
+
+    async def _handle_list_stocks(self, command_args, message_author):
+        try:
+            user = self._get_user(message_author.id)
             stock_string = ''
             for symbol in self._user_stocks[user.id]:
                 stock_string += '{} {} stocks, '.format(len(self._user_stocks[user.id][symbol]), symbol.upper())
@@ -109,77 +174,34 @@ class OttoBroker():
                 return ('{}, you have the following stocks: {}'.format(user.display_name, stock_string), True)
             else:
                 return ('{}, you have no stocks!'.format(user.display_name), True)
-
-        elif command == 'buystock':
-            if message.author.id not in self._user_cache:
-                return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
-            if len(command_args) < 4:
-                return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
-            symbol = command_args[2]
-            quantity = command_args[3]
-            # make sure we have a valid quantity
-            try:
-                quantity = int(quantity)
-            except Exception:
-                return ('No transaction occurred. Couldn\'t convert {} to an int'.format(quantity), False)
-            # make sure we can get the cost properly
-            try:
-                per_stock_cost = await self._get_stock_value(symbol)
-            except Exception as e:
-                return ('No transaction occurred. Couldn\'t get stock {} value: {}'.format(symbol, e), False)
-            
-            # make sure the user can afford the transaction
-            cur_user = self._user_cache[message.author.id]
-            if cur_user.balance < (quantity * per_stock_cost):
-                return ('No transaction occurred. Sorry {}, you don\'t have sufficient funds ({}) to buy {} {} stocks at {}'.format(cur_user.display_name,
-                    quantity * per_stock_cost, quantity, symbol, per_stock_cost), False)
-
-            # make the transaction, and report success
-            result = self._db.broker_buy_regular_stock(cur_user.id, symbol, per_stock_cost, quantity)
-            if result is not None:
-                # if we succeeded, update the cached user
-                self._update_single_user(cur_user.id)
-                return ('Congratulations {}, you\'re the proud new owner of {} additional {} stocks'.format(cur_user.display_name, quantity, symbol), True)
-            else:
-                return ('No transaction occurred. Sorry {}, something went wrong trying to buy the stocks. Go yell at :otto:'.format(cur_user.display_name), False)
-        elif command == 'sellstock':
-            if message.author.id not in self._user_cache:
-                return ('Sorry {}, but you don\'t have an account. Create one with `$broker register`'.format(message.author.name), False)
-            if len(command_args) < 4:
-                return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
-            symbol = command_args[2]
-            quantity = command_args[3]
-            # make sure we have a valid quantity
-            try:
-                quantity = int(quantity)
-            except Exception:
-                return ('No transaction occurred. Couldn\'t convert {} to an int'.format(quantity), False)
-            # make sure we can get the cost properly
-            try:
-                per_stock_cost = await self._get_stock_value(symbol)
-            except Exception as e:
-                return ('No transaction occurred. Couldn\'t get stock {} value: {}'.format(symbol, e), False)
-            
-            # make sure the user can afford the transaction
-            cur_user = self._user_cache[message.author.id]
-            cur_stocks = 0
-            if symbol in self._user_stocks[message.author.id]:
-                cur_stocks = len(self._user_stocks[message.author.id][symbol])
-            if quantity > cur_stocks:
-                return ('No transaction occurred. Sorry {}, you only have {} {} stocks'.format(cur_user.display_name, cur_stocks, symbol), False)
-
-            # make the transaction, and report success
-            result = self._db.broker_sell_stock(cur_user.id, symbol, per_stock_cost, quantity)
-            if result is not None:
-                # if we succeeded, update the cached user
-                self._update_single_user(cur_user.id)
-                cur_user = self._user_cache[message.author.id]
-                return ('Congratulations {}, your new balance is {}'.format(cur_user.display_name, cur_user.balance), True)
-            else:
-                return ('No transaction occurred. Sorry {}, something went wrong trying to sell the stocks. Go yell at :otto:'.format(cur_user.display_name), False)
-        else:
-            return ('Did not recognize command: ' + command, False)
+        except Exception as e:
+            return ('Could not list stocks: {}'.format(str(e)), False)
+    
+    async def _handle_register(self, command_args, message_author):
+        if message_author.id in self._user_cache:
+            return ('User {} already exists'.format(self._user_cache[message_author.id].display_name), False)
+        self._db.broker_create_user(message_author.id, message_author.name)
+        self._update_single_user(message_author.id)
+        new_user = self._user_cache[message_author.id]
+        return ('Welcome, {}. You have a starting balance of {}'.format(new_user.display_name, new_user.balance), True)
+    
+    async def _handle_balance(self, command_args, message_author):
+        try:
+            user = self._get_user(message_author.id)
+            return ('{}, you have a balance of {}'.format(user.display_name, user.balance), True)
+        except Exception as e:
+            return ('Could not report balance: {}'.format(str(e)), False)
     
     async def handle_command(self, request_id, response_id, message, bot, parser, web):
-        result = await self._handle_command(request_id, response_id, message, bot, parser, web)
-        return ("THIS IS IN BETA, ALL RECORDS WILL BE EVENTUALLY WIPED\n" + result[0], result[1])
+        command_args = message.content.split(' ')
+        # assumption, first value in message is '$broker'
+        if len(command_args) < 2:
+            return ('Specify a broker operation, please', False)
+        
+        command = command_args[1]
+
+        if command in self._command_mapping:
+            result = await self._command_mapping[command](command_args, message.author)
+            return ("THIS IS IN BETA, ALL RECORDS WILL BE EVENTUALLY WIPED\n" + result[0], result[1])
+        else:
+            return ('Did not recognize command: ' + command, False)
