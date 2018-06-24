@@ -5,6 +5,7 @@ import logging
 import datetime
 import pytz
 import copy
+from decimal import Decimal, ROUND_HALF_UP
 
 _logger = logging.getLogger()
 
@@ -12,7 +13,6 @@ class OttoBroker():
     def __init__(self, webWrapper, db):
         self._rest = RestWrapper(webWrapper,
             "https://api.iextrading.com/1.0", {})
-        self._quote_value_key = 'latestPrice'
         self._db = db
         self._user_cache = {}
         self._user_stocks = {}
@@ -44,12 +44,12 @@ class OttoBroker():
         except Exception:
             raise Exception('Couldn\'t convert {} to an integer'.format(string))
     
-    async def _get_stock_value(self, ticker_symbol):
+    async def _get_stock_value(self, symbol_list):
         try:
             if not self.is_market_live():
                 #raise Exception('Can\'t trade after hours')
                 pass
-            response = await self._rest.request('/stock/%s/quote' % ticker_symbol , {})
+            response = await self._rest.request('/stock/market/batch/', {'types': 'quote', 'symbols': ','.join(symbol_list)})
             unparsed = await response.text()
             data = None
             try:
@@ -60,18 +60,48 @@ class OttoBroker():
                 raise Exception('Got None from api response')
             elif not isinstance(data, dict):
                 raise Exception('Unexpected data type ' + str(type(data)))
-            elif self._quote_value_key not in data:
-                raise Exception('Key {} was not in response from api'.format(self._quote_value_key))
+
+            unknown_symbols = []
+            known_symbols = {}
+            try:
+                for symbol in symbol_list:
+                    if symbol not in data:
+                        unknown_symbols.append(symbol)
+                    else:
+                        known_symbols[symbol] = data[symbol]['quote']['latestPrice']
+            except Exception:
+                raise Exception('Unexpected response format')
             
-            result = data[self._quote_value_key]
-            if not isinstance(result, float):
-                try:
-                    result = float(result)
-                except Exception:
-                    raise Exception('Failed to convert stock value {} to a float')
-            return result
+            if not len(known_symbols):
+                raise Exception('Couldn\'t find values for symbols: {}'.format(unknown_symbols))
+            
+            mistyped_symbols = {}
+            for symbol in known_symbols:
+                if not isinstance(known_symbols[symbol], Decimal):
+                    try:
+                        known_symbols[symbol] = Decimal(known_symbols[symbol])
+                    except Exception:
+                        mistyped_symbols[symbol] = known_symbols[symbol]
+                        del known_symbols[symbol]
+            
+            if not len(known_symbols):
+                error_message = ''
+                if unknown_symbols:
+                    error_message += 'Couldn\'t find values for symbols: {}'.format(unknown_symbols)
+                if mistyped_symbols:
+                    if error_message:
+                        error_message += '. '
+                    error_message += 'Couldn\'t find types for: {}'.format(
+                        ','.join(
+                            [':'.join([k, mistyped_symbols[k]]) for k in mistyped_symbols]
+                        )
+                    )
+                raise Exception(error_message)
+
+            return known_symbols, unknown_symbols, mistyped_symbols
         except Exception as e:
             raise Exception('Couldn\'t get stock value: {}'.format(str(e)))
+    
     
     def _populate_user_cache(self):
         self._user_cache = {}
@@ -121,7 +151,9 @@ class OttoBroker():
                 raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
             symbol = command_args[2].upper()
             quantity = self._get_int(command_args[3])
-            per_stock_cost = await self._get_stock_value(symbol)
+            # here, since there's only one value, we can assume that if there was no exception, we got the value
+            stock_vals, _, _ = await self._get_stock_value([symbol])
+            per_stock_cost = stock_vals[symbol]
             
             # make sure the user can afford the transaction
             cur_user = self._user_cache[message_author.id]
@@ -149,7 +181,9 @@ class OttoBroker():
                 return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
             symbol = command_args[2].upper()
             quantity = self._get_int(command_args[3])
-            per_stock_cost = await self._get_stock_value(symbol)
+            # here, since there's only one value, we can assume that if there was no exception, we got the value
+            stock_vals, _, _ = await self._get_stock_value([symbol])
+            per_stock_cost = stock_vals[symbol]
             
             # make sure the user can afford the transaction
             cur_user = self._user_cache[message_author.id]
@@ -188,7 +222,45 @@ class OttoBroker():
     async def _handle_balance(self, command_args, message_author):
         try:
             user = self._get_user(message_author.id)
-            return ('{}, you have a balance of {}'.format(user.display_name, user.balance), True)
+            vals = {}
+            vals['Capital'] = user.balance
+            vals['Errors'] = []
+            symbols = []
+            total = user.balance
+            for stock in self._user_stocks[user.id]:
+                symbols.append(stock.upper())
+                vals[stock.upper()] = len(self._user_stocks[user.id][stock])
+            _logger.error(vals)
+            if symbols:
+                stock_vals, unknown_vals, mistyped_vals = await self._get_stock_value(symbols)
+
+                if unknown_vals:
+                    vals['Errors'].append('The following stocks had unknown values: {}'.format(unknown_vals))
+                
+                if mistyped_vals:
+                    vals['Errors'].append('The following stock values coult not be converted: {}'.format(mistyped_vals))
+                
+                for stock in stock_vals:
+                    vals[stock] = stock_vals[stock] * vals[stock]
+                    vals[stock] = Decimal(vals[stock].quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+                    total += Decimal(vals[stock])
+            
+            if not vals['Errors']:
+                del vals['Errors']
+
+            for stock in self._user_stocks[user.id]:
+                if stock.upper() in vals:
+                    vals[str(len(self._user_stocks[user.id][stock])) + ' ' + stock.upper()] = vals[stock.upper()]
+                    del vals[stock.upper()]
+            
+            vals['Total'] = total
+            
+            prefix_len = max([len(x) for x in vals])
+            amt_len = max([len(str(vals[x])) for x in vals])
+            
+            result = '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(vals[x]).rjust(amt_len) + "`" for x in vals])
+
+            return ('{}, your balance is:\n{}'.format(user.display_name, result), True)
         except Exception as e:
             return ('Could not report balance: {}'.format(str(e)), False)
     
