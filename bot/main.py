@@ -4,15 +4,20 @@ import globalSettings
 
 import asyncio
 import logging
+from logging import handlers
 import signal
 import functools
 import sys
+import os
 
-logging.basicConfig(filename='example.log', level=logging.INFO)
+handler = handlers.TimedRotatingFileHandler("logs/log_ottobot.log", when="midnight", interval=1)
+logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    filename=os.devnull,
+    level=logging.INFO)
 _logger = logging.getLogger()
+_logger.addHandler(handler)
 
 ensure_future = asyncio.ensure_future
-
 
 class OttoBot:
     def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id):
@@ -24,6 +29,7 @@ class OttoBot:
         self.response_checker_task = None
         self.status_updater_task = None
         self.shutdown_error = False
+        self.do_shutdown = False
     
     def start(self):
         _logger.info("Starting OttoBot")
@@ -37,12 +43,13 @@ class OttoBot:
                 _logger.info(msg)
             self.stop(is_error)
       
-        """make sure the primary loop is interruptable"""
+        # make sure the primary loop is interruptable
         for signame in ("SIGINT", "SIGTERM"):
-            """windows doesn't have signals, so this will error if running on windows"""
+            # windows doesn't have signals, so this will error if running on windows
             try:
                 self.loop.add_signal_handler(getattr(signal, signame),functools.partial(begin_shutdown, signame))
             except NotImplementedError:
+                _logger.info('Couldn\'t set up signal handler for {}'.format(signame))
                 pass
 
         self.discord_task = ensure_future(self.discord.start())
@@ -62,6 +69,7 @@ class OttoBot:
     def stop(self, is_error=False):
         _logger.info("Stopping OttoBot")
         self.shutdown_error = is_error
+        self.do_shutdown = True
         
         if self.discord_task and not self.discord_task.done():
             ensure_future(self.discord.disconnect())
@@ -72,6 +80,8 @@ class OttoBot:
             task_list.append(self.status_updater_task)
         while True:
             await asyncio.wait(task_list, return_when=asyncio.ALL_COMPLETED)
+            if self.do_shutdown:
+                break
 
 
 def main():

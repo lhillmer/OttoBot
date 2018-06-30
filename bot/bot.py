@@ -34,6 +34,8 @@ class DiscordWrapper(discord.Client):
         #hardcoding because lazy
         self.status_frequency = 60
         self.crypto = CryptoConverter(self.webWrapper)
+        self.ping_retry_max = 10
+        self.ping_retry_count = self.ping_retry_max
 
     async def clear_chat(self, server_id, channel_id):
         for server in self.servers:
@@ -58,8 +60,8 @@ class DiscordWrapper(discord.Client):
     def log_exception(self, error_msg):
         _logger.error("Discord Error: %s", error_msg)
     
-    """what is the point of this? I'm assuming it's some sort of keep-alive, but idfk bro"""
     async def start_ping(self):
+        # I don't fully understand this code block. should try to figure it out
         while True:
             if self.is_closed:
                 self.log_exception("Ping closed?")
@@ -72,9 +74,9 @@ class DiscordWrapper(discord.Client):
                 self.log_exception("Aborting discord ping task")
                 return
             
-            except Exception:
-                self.log_exception("Unable to send ping")
-                ensure_future(self.disconnect())
+            except Exception as e:
+                self.log_exception("Unable to send ping due to:")
+                self.log_exception(e)
                 return
             
             await asyncio.sleep(5)
