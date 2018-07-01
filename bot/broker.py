@@ -360,7 +360,7 @@ class OttoBroker():
                             self._update_single_user(sender)
                             return 'Ottobot winks at you, and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(self._user_cache[sender].balance)
                         else:
-                            return 'No foolerino'
+                            return 'That tip rounded to less than 0 cents. You get nothing, good day sir!'
 
             except Exception as e:
                 _logger.error('Failed to process tip:({})'.format(message.content))
