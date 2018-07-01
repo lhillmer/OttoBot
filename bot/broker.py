@@ -36,7 +36,8 @@ class OttoBroker():
     def is_market_live(time=None):
         if time is None:
             time = datetime.datetime.now(pytz.timezone('EST5EDT'))
-        return (time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16
+        
+        return (time.weekday() < 5) and ((time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16)
     
     @staticmethod
     def _get_int(string):
