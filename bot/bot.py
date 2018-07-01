@@ -21,12 +21,14 @@ _logger = logging.getLogger()
 ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, broker_id, tip_verifier, exchange_rate, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId,
+            broker_id, tip_verifier, exchange_rate, tip_command,
+            *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
-        self._broker = OttoBroker(webWrapper, self.db, broker_id, tip_verifier, exchange_rate)
+        self._broker = OttoBroker(webWrapper, self.db, broker_id, tip_verifier, exchange_rate, tip_command)
         self.function_executor = FunctionExecutor(self._broker)
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper

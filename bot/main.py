@@ -20,10 +20,10 @@ _logger.addHandler(handler)
 ensure_future = asyncio.ensure_future
 
 class OttoBot:
-    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, tip_verifier, exchange_rate):
+    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, tip_verifier, exchange_rate, tip_command):
         self.loop = asyncio.get_event_loop()
         self.web = WebWrapper(self.loop)
-        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, tip_verifier, exchange_rate)
+        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, tip_verifier, exchange_rate, tip_command)
         self.discord_task = None
         self.web_task = None
         self.response_checker_task = None
@@ -94,7 +94,8 @@ def main():
             globalSettings.config.get('DEFAULT', 'display_response_id') == 'True',
             globalSettings.config.get('DEFAULT', 'broker_id'),
             globalSettings.config.get('DEFAULT', 'tip_verifier_id'),
-            globalSettings.config.get('DEFAULT', 'exchange_rate'))
+            globalSettings.config.get('DEFAULT', 'exchange_rate'),
+            globalSettings.config.get('DEFAULT', 'tip_command'))
     bot.start()
 
 main()

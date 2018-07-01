@@ -94,14 +94,6 @@ CREATE SCHEMA IF NOT EXISTS ottobroker;
         FOREIGN KEY(userid) REFERENCES ottobroker.users(id),
         FOREIGN KEY(txid) REFERENCES ottobroker.faketransactions(id)
     );
-    CREATE TABLE ottobroker.deposits(
-        id serial NOT NULL,
-        userid varchar(256) NOT NULL,
-        amount NUMERIC(100, 2) NOT NULL,
-        reason VARCHAR(256),
-        PRIMARY KEY(id),
-        FOREIGN KEY(userid) REFERENCES ottobroker.userid
-    );
 
     INSERT INTO ottobroker.faketransactiontypes (txtype) values ('BUY'), ('SELL'), ('CAPITAL');
     INSERT INTO ottobroker.fakestocktypes (stocktype) values ('REGULAR');
@@ -116,7 +108,7 @@ RETURNS varchar(256) AS $BODY$
         if user_exists <= 0 THEN
             insert into ottobroker.users (id, displayname, created, balance)
             values (_user_id, _display_name, now(), 0) returning id into result_id;
-            perform ottobroker.givemoney(_user_id, 10000.00, 'Account Creation');
+            perform ottobroker.givemoney(_user_id, 0, 'Account Creation');
         end if;
         return result_id;
     END;

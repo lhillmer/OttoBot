@@ -10,7 +10,7 @@ from decimal import Decimal, ROUND_HALF_UP
 _logger = logging.getLogger()
 
 class OttoBroker():
-    def __init__(self, webWrapper, db, broker_id, tip_verifier, exchange_rate):
+    def __init__(self, webWrapper, db, broker_id, tip_verifier, exchange_rate, tip_command):
         self._rest = RestWrapper(webWrapper,
             "https://api.iextrading.com/1.0", {})
         self._db = db
@@ -19,13 +19,15 @@ class OttoBroker():
         self._tip_verifier = tip_verifier
         self._exchange_rate = Decimal(exchange_rate)
         self._broker_id = broker_id
+        self._tip_command = tip_command
 
         self._command_mapping = {
             'register': self._handle_register,
             'balance': self._handle_balance,
             'liststocks': self._handle_list_stocks,
             'buystock': self._handle_buy_stock,
-            'sellstock': self._handle_sell_stock
+            'sellstock': self._handle_sell_stock,
+            'withdraw': self._handle_withdraw_command
         }
 
         self._populate_user_cache()
@@ -49,9 +51,6 @@ class OttoBroker():
     
     async def _get_stock_value(self, symbol_list):
         try:
-            if not self.is_market_live():
-                #raise Exception('Can\'t trade after hours')
-                pass
             response = await self._rest.request('/stock/market/batch/', {'types': 'quote', 'symbols': ','.join(symbol_list)})
             unparsed = await response.text()
             data = None
@@ -139,6 +138,8 @@ class OttoBroker():
             raise Exception('You dn\'t have an account. Create one with `$broker register`')
     
     async def _buy_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
+        if not self.is_market_live():
+            raise Exception('Can\'t trade after hours')
         # make the transaction, and report success
         result = self._db.broker_buy_regular_stock(user_id, symbol, per_stock_cost, quantity)
         if result is not None:
@@ -169,6 +170,8 @@ class OttoBroker():
             return ('No transaction occured. {}'.format(str(e)), False)
     
     async def _sell_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
+        if not self.is_market_live():
+            raise Exception('Can\'t trade after hours')
         result = self._db.broker_sell_stock(user_id, symbol, per_stock_cost, quantity)
         if result is not None:
             # if we succeeded, update the cached user
@@ -267,6 +270,26 @@ class OttoBroker():
         except Exception as e:
             return ('Could not report balance: {}'.format(str(e)), False)
     
+    async def _handle_withdraw_command(self, command_args, message_author):
+        try:
+            user = self._get_user(message_author.id)
+            if len(command_args) < 3:
+                raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+            amount = Decimal(command_args[2])
+            # make sure the user can afford the transaction
+            cur_user = self._user_cache[message_author.id]
+            if cur_user.balance < amount:
+                raise Exception('Sorry {}, you have {}, not {}'.format(cur_user.display_name, cur_user.balance, amount))
+
+            momocoin_amount = amount / self._exchange_rate
+            momocoin_amount = Decimal(momocoin_amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+
+            self._db.broker_give_money_to_user(cur_user.id, -amount, 'Withdrawal to Momocoins')
+            self._update_single_user(cur_user.id)
+            return (self._tip_command.format(message_author.mention, momocoin_amount), True)
+        except Exception as e:
+            return ('No withdrawal occurred. {}'.format(str(e)), False)
+
     async def handle_command(self, request_id, response_id, message, bot, parser, web):
         command_args = message.content.split(' ')
         # assumption, first value in message is '$broker'
@@ -276,8 +299,7 @@ class OttoBroker():
         command = command_args[1]
 
         if command in self._command_mapping:
-            result = await self._command_mapping[command](command_args, message.author)
-            return ("THIS IS IN BETA, ALL RECORDS WILL BE EVENTUALLY WIPED\n" + result[0], result[1])
+            return await self._command_mapping[command](command_args, message.author)
         else:
             return ('Did not recognize command: ' + command, False)
 
