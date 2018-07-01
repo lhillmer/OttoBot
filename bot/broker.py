@@ -224,50 +224,75 @@ class OttoBroker():
         self._update_single_user(message_author.id)
         new_user = self._user_cache[message_author.id]
         return ('Welcome, {}. You have a starting balance of {}'.format(new_user.display_name, new_user.balance), True)
-    
+
     async def _handle_balance(self, command_args, message_author):
         try:
             user = self._get_user(message_author.id)
-            vals = {}
-            vals['Capital'] = user.balance
-            vals['Errors'] = []
-            symbols = []
+
+            result_lines = [
+                ['Capital', user.balance, '']
+            ]
+            errors = []
             total = user.balance
+
+            stock_counts = {}
+            stock_symbols = []
             for stock in self._user_stocks[user.id]:
-                symbols.append(stock.upper())
-                vals[stock.upper()] = len(self._user_stocks[user.id][stock])
-            _logger.error(vals)
-            if symbols:
-                stock_vals, unknown_vals, mistyped_vals = await self._get_stock_value(symbols)
+                stock_symbols.append(stock)
+                stock_counts[stock] = len(self._user_stocks[user.id][stock])
+            if stock_symbols:
+                stock_vals, unknown_vals, mistyped_vals = await self._get_stock_value(stock_symbols)
 
                 if unknown_vals:
-                    vals['Errors'].append('The following stocks had unknown values: {}'.format(unknown_vals))
+                    errors.append('The following stocks had unknown values: {}'.format(unknown_vals))
                 
                 if mistyped_vals:
-                    vals['Errors'].append('The following stock values coult not be converted: {}'.format(mistyped_vals))
+                    errors.append('The following stock values could not be converted: {}'.format(mistyped_vals))
                 
                 for stock in stock_vals:
-                    vals[stock] = stock_vals[stock] * vals[stock]
-                    vals[stock] = Decimal(vals[stock].quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
-                    total += Decimal(vals[stock])
-            
-            if not vals['Errors']:
-                del vals['Errors']
+                    full_stock_value = stock_vals[stock] * stock_counts[stock]
+                    full_stock_value = Decimal(full_stock_value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+                    total += full_stock_value
 
-            for stock in self._user_stocks[user.id]:
-                if stock.upper() in vals:
-                    vals[str(len(self._user_stocks[user.id][stock])) + ' ' + stock.upper()] = vals[stock.upper()]
-                    del vals[stock.upper()]
-            
-            vals['Total'] = total
-            
-            prefix_len = max([len(x) for x in vals])
-            amt_len = max([len(str(vals[x])) for x in vals])
-            
-            result = '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(vals[x]).rjust(amt_len) + "`" for x in vals])
+                    purchase_stock_value = Decimal(0)
+                    for owned_stock in self._user_stocks[user.id][stock]:
+                        purchase_stock_value += owned_stock.purchase_cost
+                    
+                    result_lines.append([
+                        str(stock_counts[stock]) + ' ' + stock,
+                        full_stock_value,
+                        (Decimal(100) * (full_stock_value - purchase_stock_value) / purchase_stock_value).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                    ])
 
-            return ('{}, your balance is:\n{}'.format(user.display_name, result), True)
+            result_lines.append(['Total', user.balance, ''])
+
+            if errors:
+                result_lines.append(['Errors', ', '.join(errors), ''])
+            
+            prefix_len = max([len(x[0]) for x in result_lines])
+            amt_len = max([len(str(x[1])) for x in result_lines])
+            pct_gain_len = max([len(str(abs(x[2])))for x in result_lines if isinstance(x[2], Decimal)])
+
+            result = []
+            for line in result_lines:
+                if line[2]:
+                    result.append('{} : {} ({} {} %)'.format(
+                        line[0].ljust(prefix_len),
+                        str(line[1]).rjust(amt_len),
+                        '+' if line[2] >= 0 else '-',
+                        str(abs(line[2])).rjust(pct_gain_len)
+                    ))
+                else:
+                    result.append('{} : {}'.format(
+                        line[0].ljust(prefix_len),
+                        str(line[1]).rjust(amt_len),
+                    ))
+            
+            result = '\n'.join(result)
+
+            return ('{}, your balance is:\n`{}`'.format(user.display_name, result), True)
         except Exception as e:
+            _logger.exception(e)
             return ('Could not report balance: {}'.format(str(e)), False)
     
     async def _handle_withdraw_command(self, command_args, message_author):
