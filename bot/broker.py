@@ -264,14 +264,19 @@ class OttoBroker():
                         (Decimal(100) * (full_stock_value - purchase_stock_value) / purchase_stock_value).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
                     ])
 
-            result_lines.append(['Total', user.balance, ''])
+            result_lines.append(['Total', total, ''])
 
             if errors:
                 result_lines.append(['Errors', ', '.join(errors), ''])
             
             prefix_len = max([len(x[0]) for x in result_lines])
             amt_len = max([len(str(x[1])) for x in result_lines])
-            pct_gain_len = max([len(str(abs(x[2])))for x in result_lines if isinstance(x[2], Decimal)])
+            try:
+                pct_gain_len = max([len(str(abs(x[2])))for x in result_lines if isinstance(x[2], Decimal)])
+            except Exception:
+                # no stocks means max([]), which is an error
+                # just set it to 0
+                pct_gain_len = 0
 
             result = []
             for line in result_lines:
