@@ -1,7 +1,6 @@
 from customSearchEngine import CustomSearchEngine
 from cryptoConverter import CryptoConverter
 from stockInfo import StockInfo
-from broker import OttoBroker
 import dataContainers
 import globalSettings
 
@@ -16,9 +15,9 @@ _logger = logging.getLogger()
 #This also will facilitate the execution of pending responses
 #which don't naturally have a context in the chat parser anymore
 class FunctionExecutor():
-    def __init__(self, web_wrapper, db_connection):
+    def __init__(self, broker):
         self.crypto_symbols = []
-        self._broker = OttoBroker(web_wrapper, db_connection)
+        self._broker = broker
 
     def execute(self, function, request_id, response_id, message, bot, parser, web):
         return getattr(self, function)(request_id, response_id, message, bot, parser, web)

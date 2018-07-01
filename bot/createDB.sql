@@ -68,6 +68,7 @@ CREATE SCHEMA IF NOT EXISTS ottobroker;
         stockamount int NOT NULL,
         ticker varchar(10),
         executed TIMESTAMP NOT NULL,
+        reason varchar(256),
         PRIMARY KEY(id),
         FOREIGN KEY(txtypeid) REFERENCES ottobroker.faketransactiontypes(id),
         FOREIGN KEY(userid) REFERENCES ottobroker.users(id)
@@ -115,14 +116,14 @@ RETURNS varchar(256) AS $BODY$
         if user_exists <= 0 THEN
             insert into ottobroker.users (id, displayname, created, balance)
             values (_user_id, _display_name, now(), 0) returning id into result_id;
-            perform ottobroker.givemoney(_user_id, 10000.00);
+            perform ottobroker.givemoney(_user_id, 10000.00, 'Account Creation');
         end if;
         return result_id;
     END;
     $BODY$
 LANGUAGE 'plpgsql' VOLATILE;
 
-CREATE OR REPLACE FUNCTION ottobroker.givemoney(_user_id varchar(256), _amount numeric(100, 2))
+CREATE OR REPLACE FUNCTION ottobroker.givemoney(_user_id varchar(256), _amount numeric(100, 2), _reason varchar(256))
 RETURNS int AS $BODY$
     DECLARE 
         user_exists int = 0;
@@ -135,8 +136,8 @@ RETURNS int AS $BODY$
             select balance into user_balance from ottobroker.users where id =_user_id;
             update ottobroker.users set balance = user_balance + _amount where id = _user_id;
             select id into txtype_id from ottobroker.faketransactiontypes where txtype = 'CAPITAL';
-            insert into ottobroker.faketransactions (txtypeid, userid, dollaramount, stockamount, executed)
-            values (txtype_id, _user_id, _amount, 0, now()) returning id into transaction_id;
+            insert into ottobroker.faketransactions (txtypeid, userid, dollaramount, stockamount, executed, reason)
+            values (txtype_id, _user_id, _amount, 0, now(), _reason) returning id into transaction_id;
         end if;
         return transaction_id;
     END;

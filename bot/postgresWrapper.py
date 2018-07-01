@@ -135,8 +135,8 @@ class PostgresWrapper():
             result.append(BrokerStock(raw))
         return result
     
-    def broker_give_money_to_user(self, user_id, amount):
-        return self._query_wrapper("SELECT ottobroker.givemoney(%s, %s);", [user_id, amount])
+    def broker_give_money_to_user(self, user_id, amount, reason):
+        return self._query_wrapper("SELECT ottobroker.givemoney(%s, %s, %s);", [user_id, amount, reason])
     
     def broker_buy_regular_stock(self, user_id, ticker_symbol, ticker_value, quantity):
         return self._query_wrapper("SELECT ottobroker.buyregularstock(%s, %s, %s, %s);", [user_id, ticker_symbol, ticker_value, quantity])

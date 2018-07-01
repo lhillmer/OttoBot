@@ -10,12 +10,15 @@ from decimal import Decimal, ROUND_HALF_UP
 _logger = logging.getLogger()
 
 class OttoBroker():
-    def __init__(self, webWrapper, db):
+    def __init__(self, webWrapper, db, broker_id, tip_verifier, exchange_rate):
         self._rest = RestWrapper(webWrapper,
             "https://api.iextrading.com/1.0", {})
         self._db = db
         self._user_cache = {}
         self._user_stocks = {}
+        self._tip_verifier = tip_verifier
+        self._exchange_rate = Decimal(exchange_rate)
+        self._broker_id = broker_id
 
         self._command_mapping = {
             'register': self._handle_register,
@@ -277,3 +280,36 @@ class OttoBroker():
             return ("THIS IS IN BETA, ALL RECORDS WILL BE EVENTUALLY WIPED\n" + result[0], result[1])
         else:
             return ('Did not recognize command: ' + command, False)
+
+    async def check_for_tips(self, message):
+        if message.author.id == self._tip_verifier:
+            # if we have a message from the tip verifying user (mimibot)
+            # then try to parse out whether they're reporting a tip. and if so, was it to ottobot?
+            try:
+                if message.content.startswith('Tip completed.'):
+                    tip_info = message.content.split('{')[1].strip('}')
+                    # this should now be 'sender_id>receiver_id:amount'
+                    tip_info = tip_info.split('>')
+                    sender = tip_info[0]
+                    receiver = tip_info[1].split(':')[0]
+                    if receiver == self._broker_id:
+                        try:
+                            self._get_user(sender)
+                        except Exception as e:
+                            return 'Ottobot thanks you for your generousity, unregistered user'
+                        
+                        amount = Decimal(tip_info[1].split(':')[1])
+                        amount = self._exchange_rate * amount
+                        amount = Decimal(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+                        
+                        if amount != 0:
+                            self._db.broker_give_money_to_user(sender, amount, 'Tipping Ottobot')
+                            self._update_single_user(sender)
+                            return 'Ottobot winks at you, and walks away whistling. Your pockets feel heavier.'
+                        else:
+                            return 'No foolerino'
+
+            except Exception as e:
+                _logger.error('Failed to process tip:({})'.format(message.content))
+                _logger.exception(e)
+                return 'Failed to process tip({}) Go yell at :otto:'.format(e)

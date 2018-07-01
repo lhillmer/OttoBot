@@ -2,6 +2,7 @@ import chatParser
 from postgresWrapper import PostgresWrapper
 from functionExecutor import FunctionExecutor
 from cryptoConverter import CryptoConverter
+from broker import OttoBroker
 
 import discord
 
@@ -20,12 +21,13 @@ _logger = logging.getLogger()
 ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, broker_id, tip_verifier, exchange_rate, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
-        self.function_executor = FunctionExecutor(webWrapper, self.db)
+        self._broker = OttoBroker(webWrapper, self.db, broker_id, tip_verifier, exchange_rate)
+        self.function_executor = FunctionExecutor(self._broker)
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
         self.spam_limit = spamLimit
@@ -116,12 +118,17 @@ class DiscordWrapper(discord.Client):
                     if not reply:
                         continue
                     await self.handle_reply(message, reply)
+            
+            tip_result = await self._broker.check_for_tips(message)
+            if tip_result:
+                await self.handle_reply(message, tip_result)
+
         except Exception as e:
             _logger.exception(e)
             await self.send_message(message.channel, 'Ya dun fucked up (Exception: {})'.format(e))
 
     
-    """this will probably make sense once I understand ensure_future and start_ping"""
+    # this will probably make sense once I understand ensure_future and start_ping
     async def on_ready(self):
         self.ping_task = ensure_future(self.start_ping())
     
