@@ -5,7 +5,7 @@ import logging
 import datetime
 import pytz
 import copy
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_DOWN
 
 _logger = logging.getLogger()
 
@@ -353,12 +353,12 @@ class OttoBroker():
                         
                         amount = Decimal(tip_info[1].split(':')[1])
                         amount = self._exchange_rate * amount
-                        amount = Decimal(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+                        amount = Decimal(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_DOWN))
                         
                         if amount != 0:
                             self._db.broker_give_money_to_user(sender, amount, 'Tipping Ottobot')
                             self._update_single_user(sender)
-                            return 'Ottobot winks at you, and walks away whistling. Your pockets feel heavier.'
+                            return 'Ottobot winks at you, and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(self._user_cache[sender].balance)
                         else:
                             return 'No foolerino'
 
