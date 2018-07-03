@@ -71,7 +71,7 @@ class OttoBroker():
                     if symbol not in data:
                         unknown_symbols.append(symbol)
                     else:
-                        known_symbols[symbol] = data[symbol]['quote']['latestPrice']
+                        known_symbols[symbol] = Decimal(data[symbol]['quote']['latestPrice'])
             except Exception:
                 raise Exception('Unexpected response format')
             
@@ -146,7 +146,7 @@ class OttoBroker():
         if result is not None:
             # if we succeeded, update the cached user
             self._update_single_user(user_id)
-            return 'Congratulations {}, you\'re the proud new owner of {} additional {} stocks'.format(user_display_name, quantity, symbol)
+            return '{}, You purchased {} {} at {} each, for a total cost of {}'.format(user_display_name, quantity, symbol, per_stock_cost, per_stock_cost * quantity)
         raise Exception('Sorry {}, something went wrong in the database. Go yell at :otto:'.format(user_display_name))
     
     async def _handle_buy_stock(self, command_args, message_author):
@@ -163,8 +163,9 @@ class OttoBroker():
             # make sure the user can afford the transaction
             cur_user = self._user_cache[message_author.id]
             if cur_user.balance < (quantity * per_stock_cost):
+                full_cost = Decimal(quantity * per_stock_cost).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
                 raise Exception('Sorry {}, you don\'t have sufficient funds ({}) to buy {} {} stocks at {}'.format(cur_user.display_name,
-                    quantity * per_stock_cost, quantity, symbol, per_stock_cost))
+                    full_cost, quantity, symbol, per_stock_cost))
 
             return (await self._buy_regular_stock(cur_user.id, cur_user.display_name, symbol, per_stock_cost, quantity), True)
         except Exception as e:
@@ -231,13 +232,15 @@ class OttoBroker():
             user = self._get_user(message_author.id)
 
             result_lines = [
-                ['Capital', user.balance, '']
+                ['Cash', user.balance, '']
             ]
             errors = []
             total = user.balance
 
             stock_counts = {}
             stock_symbols = []
+            purchased_stock_total = user.balance
+            current_stock_total = user.balance
             for stock in self._user_stocks[user.id]:
                 stock_symbols.append(stock)
                 stock_counts[stock] = len(self._user_stocks[user.id][stock])
@@ -254,10 +257,12 @@ class OttoBroker():
                     full_stock_value = stock_vals[stock] * stock_counts[stock]
                     full_stock_value = Decimal(full_stock_value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
                     total += full_stock_value
+                    current_stock_total += full_stock_value
 
                     purchase_stock_value = Decimal(0)
                     for owned_stock in self._user_stocks[user.id][stock]:
                         purchase_stock_value += owned_stock.purchase_cost
+                    purchased_stock_total += purchase_stock_value
                     
                     result_lines.append([
                         str(stock_counts[stock]) + ' ' + stock,
@@ -265,7 +270,11 @@ class OttoBroker():
                         (Decimal(100) * (full_stock_value - purchase_stock_value) / purchase_stock_value).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
                     ])
 
-            result_lines.append(['Total', total, ''])
+            result_lines.append([
+                'Total',
+                total,
+                (Decimal(100) * (current_stock_total - purchased_stock_total) / purchased_stock_total).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+            ])
 
             if errors:
                 result_lines.append(['Errors', ', '.join(errors), ''])
@@ -355,12 +364,12 @@ class OttoBroker():
                         amount = self._exchange_rate * amount
                         amount = Decimal(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_DOWN))
                         
-                        if amount != 0:
+                        if amount > 0:
                             self._db.broker_give_money_to_user(sender, amount, 'Tipping Ottobot')
                             self._update_single_user(sender)
                             return 'Ottobot winks at you, and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(self._user_cache[sender].balance)
                         else:
-                            return 'That tip rounded to less than 0 cents. You get nothing, good day sir!'
+                            return 'That tip rounded to 0 cents. You get nothing, good day sir!'
 
             except Exception as e:
                 _logger.error('Failed to process tip:({})'.format(message.content))
