@@ -2,12 +2,14 @@ import chatParser
 from postgresWrapper import PostgresWrapper
 from functionExecutor import FunctionExecutor
 from cryptoConverter import CryptoConverter
+from broker import OttoBroker
 
 import discord
 
 import datetime
 import asyncio
 import logging
+import traceback
 
 """i'm copying a ton of code from here:
     https://github.com/gammafunk/Cerebot/blob/master/cerebot/discord.py
@@ -19,12 +21,15 @@ _logger = logging.getLogger()
 ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
-    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId, *args, **kwargs):
+    def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId,
+            broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id,
+            *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
-        self.function_executor = FunctionExecutor()
+        self._broker = OttoBroker(webWrapper, self.db, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id)
+        self.function_executor = FunctionExecutor(self._broker)
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
         self.spam_limit = spamLimit
@@ -33,6 +38,8 @@ class DiscordWrapper(discord.Client):
         #hardcoding because lazy
         self.status_frequency = 60
         self.crypto = CryptoConverter(self.webWrapper)
+        self.ping_retry_max = 10
+        self.ping_retry_count = self.ping_retry_max
 
     async def clear_chat(self, server_id, channel_id):
         for server in self.servers:
@@ -57,8 +64,8 @@ class DiscordWrapper(discord.Client):
     def log_exception(self, error_msg):
         _logger.error("Discord Error: %s", error_msg)
     
-    """what is the point of this? I'm assuming it's some sort of keep-alive, but idfk bro"""
     async def start_ping(self):
+        # I don't fully understand this code block. should try to figure it out
         while True:
             if self.is_closed:
                 self.log_exception("Ping closed?")
@@ -71,9 +78,9 @@ class DiscordWrapper(discord.Client):
                 self.log_exception("Aborting discord ping task")
                 return
             
-            except Exception:
-                self.log_exception("Unable to send ping")
-                ensure_future(self.disconnect())
+            except Exception as e:
+                self.log_exception("Unable to send ping due to:")
+                self.log_exception(e)
                 return
             
             await asyncio.sleep(5)
@@ -113,11 +120,17 @@ class DiscordWrapper(discord.Client):
                     if not reply:
                         continue
                     await self.handle_reply(message, reply)
+            
+            tip_result = await self._broker.check_for_tips(message)
+            if tip_result:
+                await self.handle_reply(message, tip_result)
+
         except Exception as e:
-            _logger.error("Error handling command: %s", str(e))
+            _logger.exception(e)
+            await self.send_message(message.channel, 'Ya dun fucked up (Exception: {})'.format(e))
 
     
-    """this will probably make sense once I understand ensure_future and start_ping"""
+    # this will probably make sense once I understand ensure_future and start_ping
     async def on_ready(self):
         self.ping_task = ensure_future(self.start_ping())
     

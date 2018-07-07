@@ -127,7 +127,7 @@ class ChatParser():
             _logger.warn("Unknown command type: " + self.command_types[command.command_type_id].name)
 
     def get_replies(self, message, bot, web, db, spam_timeout, spam_limit, display_response_id):
-        """this yields strings until it has completed its reply"""
+        # this yields strings until it has completed its reply
         for i in self.commands:
             cmd = self.commands[i]
             if self.is_match(cmd, message.content):

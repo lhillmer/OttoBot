@@ -1,8 +1,4 @@
-from dataContainers import CommandType
-from dataContainers import Response
-from dataContainers import PendingResponse
-from dataContainers import Request
-from dataContainers import Command
+from dataContainers import *
 
 import psycopg2
 import psycopg2.extras
@@ -31,20 +27,20 @@ class PostgresWrapper():
                     _logger.info('with vars: {}'.format(vars))
                 cursor.execute(query, vars)
                 connection.commit()
+                result = None
                 if(doFetch):
-                    return cursor.fetchall()
-                return
+                    result = cursor.fetchall()
+                cursor.close()
+                connection.close()
+                return result
             except psycopg2.InternalError as e:
+                cursor.close()
+                connection.close()
                 if e.pgcode:
                     _logger.error("psycopg2 error code: " + str(e.pgcode))
                 if not retry:
                     raise e
                 retry = False
-            finally:
-                if connection != None:
-                    connection.close()
-                if cursor != None:
-                    cursor.close()
 
     def get_active_commands(self, do_log=True):
         rawVals = self._query_wrapper("SELECT * FROM ottobot.commands WHERE active;", do_log=do_log)
@@ -118,3 +114,32 @@ class PostgresWrapper():
 
     def delete_pending_response(self, pendingResponseID):
         self._query_wrapper("DELETE FROM ottobot.pendingresponses WHERE id=%s;", [pendingResponseID], doFetch=False)
+
+    def broker_create_user(self, user_id, display_name):
+        return self._query_wrapper("SELECT ottobroker.createuser(%s, %s);", [user_id, display_name])
+    
+    def broker_get_single_user(self, user_id):
+        return BrokerUser(self._query_wrapper("SELECT * FROM ottobroker.users WHERE id=%s;", [user_id])[0])
+    
+    def broker_get_all_users(self):
+        rawVals = self._query_wrapper("SELECT * FROM ottobroker.users;", [])
+        result = []
+        for raw in rawVals:
+            result.append(BrokerUser(raw))
+        return result
+    
+    def broker_get_stocks_by_user(self, user_id):
+        rawVals = self._query_wrapper("SELECT * FROM ottobroker.fakestocks WHERE userid=%s and sold is NULL;", [user_id])
+        result = []
+        for raw in rawVals:
+            result.append(BrokerStock(raw))
+        return result
+    
+    def broker_give_money_to_user(self, user_id, amount, reason):
+        return self._query_wrapper("SELECT ottobroker.givemoney(%s, %s, %s);", [user_id, amount, reason])
+    
+    def broker_buy_regular_stock(self, user_id, ticker_symbol, ticker_value, quantity):
+        return self._query_wrapper("SELECT ottobroker.buyregularstock(%s, %s, %s, %s);", [user_id, ticker_symbol, ticker_value, quantity])
+    
+    def broker_sell_stock(self, user_id, ticker_symbol, ticker_value, quantity):
+        return self._query_wrapper("SELECT ottobroker.sellstock(%s, %s, %s, %s);", [user_id, ticker_symbol, ticker_value, quantity])

@@ -15,8 +15,9 @@ _logger = logging.getLogger()
 #This also will facilitate the execution of pending responses
 #which don't naturally have a context in the chat parser anymore
 class FunctionExecutor():
-    def __init__(self):
-        self.crypto_symbols= []
+    def __init__(self, broker):
+        self.crypto_symbols = []
+        self._broker = broker
 
     def execute(self, function, request_id, response_id, message, bot, parser, web):
         return getattr(self, function)(request_id, response_id, message, bot, parser, web)
@@ -349,6 +350,9 @@ class FunctionExecutor():
             result += "{:,.2f}".format(market_cap)
         
         return (result, True)
+    
+    async def broker(self, request_id, response_id, message, bot, parser, web):
+        return await self._broker.handle_command(request_id, response_id, message, bot, parser, web)
     
     async def stock_data(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ")

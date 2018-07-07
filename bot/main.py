@@ -4,26 +4,32 @@ import globalSettings
 
 import asyncio
 import logging
+from logging import handlers
 import signal
 import functools
 import sys
+import os
 
-logging.basicConfig(filename='example.log', level=logging.INFO)
+handler = handlers.TimedRotatingFileHandler("logs/log_ottobot.log", when="midnight", interval=1)
+logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    filename=os.devnull,
+    level=logging.INFO)
 _logger = logging.getLogger()
+_logger.addHandler(handler)
 
 ensure_future = asyncio.ensure_future
 
-
 class OttoBot:
-    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id):
+    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id):
         self.loop = asyncio.get_event_loop()
         self.web = WebWrapper(self.loop)
-        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id)
+        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id)
         self.discord_task = None
         self.web_task = None
         self.response_checker_task = None
         self.status_updater_task = None
         self.shutdown_error = False
+        self.do_shutdown = False
     
     def start(self):
         _logger.info("Starting OttoBot")
@@ -37,12 +43,13 @@ class OttoBot:
                 _logger.info(msg)
             self.stop(is_error)
       
-        """make sure the primary loop is interruptable"""
+        # make sure the primary loop is interruptable
         for signame in ("SIGINT", "SIGTERM"):
-            """windows doesn't have signals, so this will error if running on windows"""
+            # windows doesn't have signals, so this will error if running on windows
             try:
                 self.loop.add_signal_handler(getattr(signal, signame),functools.partial(begin_shutdown, signame))
             except NotImplementedError:
+                _logger.info('Couldn\'t set up signal handler for {}'.format(signame))
                 pass
 
         self.discord_task = ensure_future(self.discord.start())
@@ -62,6 +69,7 @@ class OttoBot:
     def stop(self, is_error=False):
         _logger.info("Stopping OttoBot")
         self.shutdown_error = is_error
+        self.do_shutdown = True
         
         if self.discord_task and not self.discord_task.done():
             ensure_future(self.discord.disconnect())
@@ -72,6 +80,8 @@ class OttoBot:
             task_list.append(self.status_updater_task)
         while True:
             await asyncio.wait(task_list, return_when=asyncio.ALL_COMPLETED)
+            if self.do_shutdown:
+                break
 
 
 def main():
@@ -81,7 +91,13 @@ def main():
             globalSettings.config.get('DEFAULT', 'connectionString'),
             int(globalSettings.config.get('DEFAULT', 'spam_limit')),
             int(globalSettings.config.get('DEFAULT', 'spam_timeout')),
-            globalSettings.config.get('DEFAULT', 'display_response_id') == 'True')
+            globalSettings.config.get('DEFAULT', 'display_response_id') == 'True',
+            globalSettings.config.get('DEFAULT', 'broker_id'),
+            globalSettings.config.get('DEFAULT', 'super_user_role'),
+            globalSettings.config.get('DEFAULT', 'tip_verifier_id'),
+            globalSettings.config.get('DEFAULT', 'exchange_rate'),
+            globalSettings.config.get('DEFAULT', 'tip_command'),
+            globalSettings.config.get('DEFAULT', 'test_user_id'))
     bot.start()
 
 main()
