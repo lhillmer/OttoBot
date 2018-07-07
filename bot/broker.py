@@ -241,7 +241,7 @@ class OttoBroker():
             user = self._get_user(message_author.id)
 
             result_lines = [
-                ['Cash', user.balance, '']
+                ['Cash', user.balance, None]
             ]
             errors = []
             total = user.balance
@@ -286,7 +286,7 @@ class OttoBroker():
             ])
 
             if errors:
-                result_lines.append(['Errors', ', '.join(errors), ''])
+                result_lines.append(['Errors', ', '.join(errors), None])
             
             prefix_len = max([len(x[0]) for x in result_lines])
             amt_len = max([len(str(x[1])) for x in result_lines])
@@ -299,7 +299,7 @@ class OttoBroker():
 
             result = []
             for line in result_lines:
-                if line[2]:
+                if line[2] is not None:
                     result.append('{} : {} ({} {} %)'.format(
                         line[0].ljust(prefix_len),
                         str(line[1]).rjust(amt_len),
