@@ -10,7 +10,7 @@ from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_DOWN
 _logger = logging.getLogger()
 
 class OttoBroker():
-    def __init__(self, webWrapper, db, broker_id, tip_verifier, exchange_rate, tip_command):
+    def __init__(self, webWrapper, db, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id):
         self._rest = RestWrapper(webWrapper,
             "https://api.iextrading.com/1.0", {})
         self._db = db
@@ -21,13 +21,18 @@ class OttoBroker():
         self._broker_id = broker_id
         self._tip_command = tip_command
 
+        self._test_mode = False
+        self._test_user_id = test_user_id
+        self._super_user_role = super_user_role
+
         self._command_mapping = {
             'register': self._handle_register,
             'balance': self._handle_balance,
             'liststocks': self._handle_list_stocks,
             'buystock': self._handle_buy_stock,
             'sellstock': self._handle_sell_stock,
-            'withdraw': self._handle_withdraw_command
+            'withdraw': self._handle_withdraw_command,
+            'testmode': self._handle_test_mode
         }
 
         self._populate_user_cache()
@@ -133,13 +138,15 @@ class OttoBroker():
         return stock_dict
 
     def _get_user(self, user_id):
-        if user_id in self._user_cache:
+        if self._test_mode:
+            return self._user_cache[self._test_user_id]
+        elif user_id in self._user_cache:
             return self._user_cache[user_id]
         else:
             raise Exception('You dn\'t have an account. Create one with `$broker register`')
     
     async def _buy_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
-        if not self.is_market_live():
+        if not self.is_market_live() and not self._test_mode:
             raise Exception('Can\'t trade after hours')
         # make the transaction, and report success
         result = self._db.broker_buy_regular_stock(user_id, symbol, per_stock_cost, quantity)
@@ -161,7 +168,7 @@ class OttoBroker():
             per_stock_cost = stock_vals[symbol]
             
             # make sure the user can afford the transaction
-            cur_user = self._user_cache[message_author.id]
+            cur_user = self._user_cache[user.id]
             if cur_user.balance < (quantity * per_stock_cost):
                 full_cost = Decimal(quantity * per_stock_cost).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
                 raise Exception('Sorry {}, you don\'t have sufficient funds ({}) to buy {} {} stocks at {}'.format(cur_user.display_name,
@@ -172,7 +179,7 @@ class OttoBroker():
             return ('No transaction occured. {}'.format(str(e)), False)
     
     async def _sell_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
-        if not self.is_market_live():
+        if not self.is_market_live() and not self._test_mode:
             raise Exception('Can\'t trade after hours')
         result = self._db.broker_sell_stock(user_id, symbol, per_stock_cost, quantity)
         if result is not None:
@@ -194,10 +201,10 @@ class OttoBroker():
             per_stock_cost = stock_vals[symbol]
             
             # make sure the user can afford the transaction
-            cur_user = self._user_cache[message_author.id]
+            cur_user = self._user_cache[user.id]
             cur_stocks = 0
-            if symbol in self._user_stocks[message_author.id]:
-                cur_stocks = len(self._user_stocks[message_author.id][symbol])
+            if symbol in self._user_stocks[user.id]:
+                cur_stocks = len(self._user_stocks[user.id][symbol])
             if quantity > cur_stocks:
                 raise Exception('Sorry {}, you only have {} {} stocks'.format(cur_user.display_name, cur_stocks, symbol))
 
@@ -220,7 +227,9 @@ class OttoBroker():
             return ('Could not list stocks: {}'.format(str(e)), False)
     
     async def _handle_register(self, command_args, message_author):
-        if message_author.id in self._user_cache:
+        if self._test_mode:
+            return ('User {} already exists'.format(self._user_cache[self._test_user_id].display_name), False)
+        elif message_author.id in self._user_cache:
             return ('User {} already exists'.format(self._user_cache[message_author.id].display_name), False)
         self._db.broker_create_user(message_author.id, message_author.name)
         self._update_single_user(message_author.id)
@@ -312,6 +321,8 @@ class OttoBroker():
     
     async def _handle_withdraw_command(self, command_args, message_author):
         try:
+            if self._test_mode:
+                raise Exception('Can\'t withdraw in test mode')
             user = self._get_user(message_author.id)
             if len(command_args) < 3:
                 raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
@@ -329,6 +340,19 @@ class OttoBroker():
             return (self._tip_command.format(message_author.mention, momocoin_amount), True)
         except Exception as e:
             return ('No withdrawal occurred. {}'.format(str(e)), False)
+
+    async def _handle_test_mode(self, command_args, message_author):
+        is_super_user = False
+        for role in message_author.roles:
+            if role.name == self._super_user_role:
+                is_super_user = True
+                break
+
+        if is_super_user:
+            self._test_mode = not self._test_mode
+            return ('Test mode is now ' + ('enabled' if self._test_mode else 'disabled'), True)
+        else:
+            return ('Can\'t let you do that, StarFox. Test mode is still ' + ('enabled' if self._test_mode else 'disabled'), False)
 
     async def handle_command(self, request_id, response_id, message, bot, parser, web):
         command_args = message.content.split(' ')
@@ -356,7 +380,7 @@ class OttoBroker():
                     receiver = tip_info[1].split(':')[0]
                     if receiver == self._broker_id:
                         try:
-                            self._get_user(sender)
+                            user = self._get_user(sender)
                         except Exception as e:
                             return 'Ottobot thanks you for your generousity, unregistered user'
                         
@@ -364,10 +388,14 @@ class OttoBroker():
                         amount = self._exchange_rate * amount
                         amount = Decimal(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_DOWN))
                         
+                        # just an arbitrary way to force money into the test account. 
+                        if self._test_mode:
+                            amount = 500
+                        
                         if amount > 0:
-                            self._db.broker_give_money_to_user(sender, amount, 'Tipping Ottobot')
-                            self._update_single_user(sender)
-                            return 'Ottobot winks at you, and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(self._user_cache[sender].balance)
+                            self._db.broker_give_money_to_user(user.id, amount, 'Tipping Ottobot')
+                            self._update_single_user(user.id)
+                            return 'Ottobot winks at you, ' + user.display_name + ', and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(self._user_cache[user.id].balance)
                         else:
                             return 'That tip rounded to 0 cents. You get nothing, good day sir!'
 
