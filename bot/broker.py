@@ -76,7 +76,7 @@ class OttoBroker():
                     if symbol not in data:
                         unknown_symbols.append(symbol)
                     else:
-                        known_symbols[symbol] = Decimal(data[symbol]['quote']['latestPrice'])
+                        known_symbols[symbol] = Decimal(str(data[symbol]['quote']['latestPrice']))
             except Exception:
                 raise Exception('Unexpected response format')
             
@@ -166,7 +166,7 @@ class OttoBroker():
             # here, since there's only one value, we can assume that if there was no exception, we got the value
             stock_vals, _, _ = await self._get_stock_value([symbol])
             per_stock_cost = stock_vals[symbol]
-            
+
             # make sure the user can afford the transaction
             cur_user = self._user_cache[user.id]
             if cur_user.balance < (quantity * per_stock_cost):
