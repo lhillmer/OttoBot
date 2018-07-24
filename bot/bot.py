@@ -13,7 +13,6 @@ import traceback
 
 """i'm copying a ton of code from here:
     https://github.com/gammafunk/Cerebot/blob/master/cerebot/discord.py
-    i totally don't understand most of it
 """
 
 _logger = logging.getLogger()
@@ -22,13 +21,13 @@ ensure_future = asyncio.ensure_future
 
 class DiscordWrapper(discord.Client):
     def __init__(self, token, webWrapper, prefix, connectionString, spamLimit, spamTimeout, displayResponseId,
-            broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id,
+            broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key,
             *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ping_task = None
         self.token = token
         self.db = PostgresWrapper(connectionString)
-        self._broker = OttoBroker(webWrapper, self.db, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id)
+        self._broker = OttoBroker(webWrapper, self.db, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key)
         self.function_executor = FunctionExecutor(self._broker)
         self.chat_parser = chatParser.ChatParser(prefix, self.db, self.function_executor)
         self.webWrapper = webWrapper
