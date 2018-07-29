@@ -21,7 +21,6 @@ class OttoBroker():
         self._broker_api = SynchronousRestWrapper("http://otto.runtimeexception.net/broker", {})
         self._broker_api_key = broker_api_key
         
-        self._user_cache = {}
         self._tip_verifier = tip_verifier
         self._exchange_rate = Decimal(exchange_rate)
         self._broker_id = broker_id
@@ -31,16 +30,16 @@ class OttoBroker():
         self._command_mapping = {
             'register': self._handle_register,
             'balance': self._handle_balance,
-            'buystock': self._handle_buy_stock,
-            'sellstock': self._handle_sell_stock,
+            'buystock': self._handle_buy_long,
+            'sellstock': self._handle_sell_long,
+            'buyshort': self._handle_buy_short,
+            'sellshort': self._handle_sell_short,
             'withdraw': self._handle_withdraw_command,
             'testmode': self._handle_test_mode,
             'watch': self._handle_watch,
             'unwatch': self._handle_unwatch,
             'help': self._handle_help
         }
-
-        self._update_all_users()
 
     @staticmethod
     def is_market_live(time=None):
@@ -132,33 +131,18 @@ class OttoBroker():
     
     def _get_test_mode(self):
         return self._broker_api_wrapper('/test_mode', {})['test_mode']
-    
-    def _update_all_users(self):
-        self._user_cache = {}
-
-        data = self._broker_api_wrapper('/all_users', {'shallow': 'false', 'historical': 'true'})
-        user_list = data['user_list']
-        for user in user_list:
-            self._user_cache[user['id']] = user
         
-    def _update_single_user(self, user_id):
-        user = self._broker_api_wrapper('/user_info',{'userid': user_id, 'shallow': 'false', 'historical': 'true'})['user']
-        self._user_cache[user['id']] = user
-
     def _get_user(self, user_id):
-        if user_id in self._user_cache:
-            return self._user_cache[user_id]
-        else:
-            raise Exception('You don\'t have an account. Create one with `$broker register`')
+        return self._broker_api_wrapper('/user_info',{'userid': user_id, 'shallow': 'false', 'historical': 'true'})['user']
     
-    async def _handle_buy_stock(self, command_args, message_author):
+    async def _handle_buy_long(self, command_args, message_author):
         user = self._get_user(message_author.id)
         if len(command_args) < 4:
             raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
         symbol = command_args[2]
         quantity = self._get_int(command_args[3])
         
-        data = self._broker_api_wrapper('/buy_stock',
+        data = self._broker_api_wrapper('/buy_long',
             {
                 'userid': user['id'],
                 'apikey': self._broker_api_key,
@@ -168,7 +152,6 @@ class OttoBroker():
         )
 
         user = data['user']
-        self._user_cache[user['id']] = user
         
         return (
             '{}, You purchased {} {} at {} each, for a total cost of {}'.format(
@@ -180,14 +163,14 @@ class OttoBroker():
             True
         )
 
-    async def _handle_sell_stock(self, command_args, message_author):
+    async def _handle_sell_long(self, command_args, message_author):
         user = self._get_user(message_author.id)
         if len(command_args) < 4:
             raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
         symbol = command_args[2]
         quantity = self._get_int(command_args[3])
         
-        data = self._broker_api_wrapper('/sell_stock',
+        data = self._broker_api_wrapper('/sell_long',
             {
                 'userid': user['id'],
                 'apikey': self._broker_api_key,
@@ -197,7 +180,63 @@ class OttoBroker():
         )
 
         user = data['user']
-        self._user_cache[user['id']] = user
+        
+        return (
+            '{}, You sold {} {} at {} each, for a total gain of {}.\nYou now have {}'.format(
+                user['display_name'],
+                data['quantity'],
+                data['symbol'],
+                data['per_stock_amt'],
+                data['total_amt'],
+                user['balance']),
+            True
+        )
+    
+    async def _handle_buy_short(self, command_args, message_author):
+        user = self._get_user(message_author.id)
+        if len(command_args) < 4:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        symbol = command_args[2]
+        quantity = self._get_int(command_args[3])
+        
+        data = self._broker_api_wrapper('/buy_short',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+                'quantity': quantity
+            }
+        )
+
+        user = data['user']
+        
+        return (
+            '{}, You purchased {} {} at {} each, for a total cost of {}'.format(
+                user['display_name'],
+                data['quantity'],
+                data['symbol'],
+                data['per_stock_amt'],
+                data['total_amt']),
+            True
+        )
+
+    async def _handle_sell_short(self, command_args, message_author):
+        user = self._get_user(message_author.id)
+        if len(command_args) < 4:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        symbol = command_args[2]
+        quantity = self._get_int(command_args[3])
+        
+        data = self._broker_api_wrapper('/sell_short',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+                'quantity': quantity
+            }
+        )
+
+        user = data['user']
         
         return (
             '{}, You sold {} {} at {} each, for a total gain of {}.\nYou now have {}'.format(
@@ -219,95 +258,115 @@ class OttoBroker():
             }
         )['user']
 
-        self._user_cache[user['id']] = user
         return ('Welcome, {}. You have a starting balance of {}'.format(user['display_name'], user['balance']), True)
+    
+    @staticmethod
+    def _format_section_helper(lines):
+        result = []
+        prefix_len = max([len(x[0]) for x in lines])
+        amt_len = max([len(str(x[1])) for x in lines])
+        try:
+            pct_gain_len = max([len(str(abs(x[2])))for x in lines if isinstance(x[2], Decimal)])
+        except Exception:
+            # no stocks means max([]), which is an error
+            # just set it to 0
+            pct_gain_len = 0
+
+        for line in lines:
+            if line[2] is not None:
+                result.append('{} : {} ({} {} %)'.format(
+                    line[0].ljust(prefix_len),
+                    str(line[1]).rjust(amt_len),
+                    '+' if line[2] >= 0 else '-',
+                    str(abs(line[2])).rjust(pct_gain_len)
+                ))
+            else:
+                result.append('{} : {}'.format(
+                    line[0].ljust(prefix_len),
+                    str(line[1]).rjust(amt_len),
+                ))
+        
+        return result
 
     async def _handle_balance(self, command_args, message_author):
         try:
             user = self._get_user(message_author.id)
 
-            result_lines = [
-                ['Cash', user['balance'], None]
-            ]
             errors = []
-            total = Decimal(user['balance'])
 
-            stock_counts = {}
-            stock_symbols = []
+            cash = user['balance']
+            assets_total = Decimal(user['assets'])
+            assets_orig_total = Decimal(cash)
+            asset_lines = [
+                ['Cash', cash, None]
+            ]
 
-            purchased_stock_total = Decimal(user['balance'])
-            current_stock_total = Decimal(user['balance'])
+            liabilities_total = Decimal(user['liabilities'])
+            liabilities_orig_total = Decimal(0)
+            liability_lines = []
 
-            for stock in user['stocks']:
-                stock_symbols.append(stock)
-                stock_counts[stock] = 0
+            for stock in user['longs']:
+                count = sum([x['count'] for x in user['longs'][stock]['stocks']])
+                cur_purchase_stock = sum([Decimal(x['purchase_cost']) * x['count'] for x in user['longs'][stock]['stocks']])
+                full_stock_value = Decimal(user['longs'][stock]['total_value'])
+                assets_orig_total += cur_purchase_stock
 
-            if stock_symbols:
-                stock_vals, unknown_vals, mistyped_vals = await self._get_stock_value(stock_symbols)
+                asset_lines.append([
+                    '{} {}'.format(count, stock),
+                    full_stock_value,
+                    (Decimal(100) * (full_stock_value - cur_purchase_stock) / cur_purchase_stock).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
 
-                if unknown_vals:
-                    errors.append('The following stocks had unknown values: {}'.format(unknown_vals))
-                
-                if mistyped_vals:
-                    errors.append('The following stock values could not be converted: {}'.format(mistyped_vals))
-                
-                for stock in stock_vals:
-                    full_stock_value = Decimal(0)
-                    cur_purchase_stock = Decimal(0)
+            if assets_orig_total == 0:
+                asset_lines.append([
+                    'Total',
+                    assets_total,
+                    Decimal(0)
+                ])
+            else:
+                asset_lines.append([
+                    'Total',
+                    assets_total,
+                    (Decimal(100) * (assets_total - assets_orig_total) / assets_orig_total).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
 
-                    for owned_stock in user['stocks'][stock]:
-                        cur_stock_count = int(owned_stock['count'])
-                        stock_counts[stock] += cur_stock_count
+            for stock in user['shorts']:
+                count = sum([x['count'] for x in user['shorts'][stock]['stocks']])
+                cur_sold_stock = sum([Decimal(x['sell_cost']) * x['count'] for x in user['shorts'][stock]['stocks']])
+                full_stock_value = Decimal(user['shorts'][stock]['total_value'])
+                liabilities_orig_total += cur_sold_stock
 
-                        full_stock_value += stock_vals[stock] * cur_stock_count
-                        full_stock_value = Decimal(full_stock_value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+                liability_lines.append([
+                    '{} {}'.format(count, stock),
+                    full_stock_value,
+                    (Decimal(100) * (1 - (full_stock_value / cur_sold_stock))).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
 
-                        cur_purchase_stock += Decimal(owned_stock['purchase_cost']) * cur_stock_count
-                        cur_purchase_stock = Decimal(cur_purchase_stock.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+            if liabilities_orig_total == 0:
+                liability_lines.append([
+                    'Total',
+                    liabilities_total,
+                    Decimal(0)
+                ])
+            else:
+                liability_lines.append([
+                    'Total',
+                    liabilities_total,
+                    (Decimal(100) *  (1 - (liabilities_total / liabilities_orig_total))).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
 
-                    purchased_stock_total += cur_purchase_stock
-                    
-                    total += full_stock_value
-                    current_stock_total += full_stock_value
-                    
-                    result_lines.append([
-                        str(stock_counts[stock]) + ' ' + stock,
-                        full_stock_value,
-                        (Decimal(100) * (full_stock_value - cur_purchase_stock) / cur_purchase_stock).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
-                    ])
-
-            result_lines.append([
-                'Total',
-                total,
-                (Decimal(100) * (current_stock_total - purchased_stock_total) / purchased_stock_total).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
-            ])
+            result = [
+                'Assets:'
+            ]
+            result.extend(self._format_section_helper(asset_lines))
+            result.append('')
+            result.append('Liabilities:')
+            result.extend(self._format_section_helper(liability_lines))
+            result.append('')
+            result.append('Net Worth: {}'.format(assets_total - liabilities_total))
 
             if errors:
-                result_lines.append(['Errors', ', '.join(errors), None])
-            
-            prefix_len = max([len(x[0]) for x in result_lines])
-            amt_len = max([len(str(x[1])) for x in result_lines])
-            try:
-                pct_gain_len = max([len(str(abs(x[2])))for x in result_lines if isinstance(x[2], Decimal)])
-            except Exception:
-                # no stocks means max([]), which is an error
-                # just set it to 0
-                pct_gain_len = 0
-
-            result = []
-            for line in result_lines:
-                if line[2] is not None:
-                    result.append('{} : {} ({} {} %)'.format(
-                        line[0].ljust(prefix_len),
-                        str(line[1]).rjust(amt_len),
-                        '+' if line[2] >= 0 else '-',
-                        str(abs(line[2])).rjust(pct_gain_len)
-                    ))
-                else:
-                    result.append('{} : {}'.format(
-                        line[0].ljust(prefix_len),
-                        str(line[1]).rjust(amt_len),
-                    ))
+                result.append('Errors: {}'.format(', '.join(errors)))
             
             result = '\n'.join(result)
 
@@ -335,7 +394,6 @@ class OttoBroker():
         )
 
         user = data['user']
-        self._user_cache[user['id']] = user
 
         # pull the amount from the response, just in case
         amount = Decimal(data['amount'])
@@ -371,7 +429,6 @@ class OttoBroker():
         )
 
         user = data['user']
-        self._user_cache[user['id']] = user
         return ('{} has been added to your watches, {}'.format(symbol.upper(), user['display_name']), True)
 
     async def _handle_unwatch(self, command_args, message_author):
@@ -389,7 +446,6 @@ class OttoBroker():
         )
 
         user = data['user']
-        self._user_cache[user['id']] = user
         return ('{} has been removed from your watches, {}'.format(symbol.upper(), user['display_name']), True)
         
     async def _handle_help(self, command_args, message_author):
@@ -452,7 +508,6 @@ class OttoBroker():
                             )
 
                             user = data['user']
-                            self._user_cache[user['id']] = user
                             return 'Ottobot winks at you, {}, and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(
                                 user['display_name'],
                                 user['balance']
