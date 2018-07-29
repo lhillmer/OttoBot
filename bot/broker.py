@@ -184,7 +184,7 @@ class OttoBroker():
         symbol = command_args[2]
         quantity = self._get_int(command_args[3])
         
-        data = self._broker_api_wrapper('/buy_stock',
+        data = self._broker_api_wrapper('/sell_stock',
             {
                 'userid': user['id'],
                 'apikey': self._broker_api_key,
@@ -231,11 +231,14 @@ class OttoBroker():
 
             stock_counts = {}
             stock_symbols = []
+
             purchased_stock_total = Decimal(user['balance'])
             current_stock_total = Decimal(user['balance'])
+
             for stock in user['stocks']:
                 stock_symbols.append(stock)
-                stock_counts[stock] = len(user['stocks'][stock])
+                stock_counts[stock] = 0
+
             if stock_symbols:
                 stock_vals, unknown_vals, mistyped_vals = await self._get_stock_value(stock_symbols)
 
@@ -246,20 +249,28 @@ class OttoBroker():
                     errors.append('The following stock values could not be converted: {}'.format(mistyped_vals))
                 
                 for stock in stock_vals:
-                    full_stock_value = stock_vals[stock] * stock_counts[stock]
-                    full_stock_value = Decimal(full_stock_value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+                    full_stock_value = Decimal(0)
+                    cur_purchase_stock = Decimal(0)
+
+                    for owned_stock in user['stocks'][stock]:
+                        cur_stock_count = int(owned_stock['count'])
+                        stock_counts[stock] += cur_stock_count
+
+                        full_stock_value += stock_vals[stock] * cur_stock_count
+                        full_stock_value = Decimal(full_stock_value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+
+                        cur_purchase_stock += Decimal(owned_stock['purchase_cost']) * cur_stock_count
+                        cur_purchase_stock = Decimal(cur_purchase_stock.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+
+                    purchased_stock_total += cur_purchase_stock
+                    
                     total += full_stock_value
                     current_stock_total += full_stock_value
-
-                    purchase_stock_value = Decimal(0)
-                    for owned_stock in user['stocks'][stock]:
-                        purchase_stock_value += Decimal(owned_stock['purchase_cost'])
-                    purchased_stock_total += purchase_stock_value
                     
                     result_lines.append([
                         str(stock_counts[stock]) + ' ' + stock,
                         full_stock_value,
-                        (Decimal(100) * (full_stock_value - purchase_stock_value) / purchase_stock_value).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                        (Decimal(100) * (full_stock_value - cur_purchase_stock) / cur_purchase_stock).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
                     ])
 
             result_lines.append([
@@ -320,7 +331,7 @@ class OttoBroker():
             }
         )
 
-        user = data['user']['id']
+        user = data['user']
         self._user_cache[user['id']] = user
 
         # pull the amount from the response, just in case
@@ -384,7 +395,7 @@ class OttoBroker():
                             amount = 15000
                         
                         if amount > 0:
-                            data = self._broker_api_wrapper('/withdraw',
+                            data = self._broker_api_wrapper('/deposit',
                                 {
                                     'userid': sender,
                                     'apikey': self._broker_api_key,
