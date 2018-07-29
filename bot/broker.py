@@ -34,7 +34,9 @@ class OttoBroker():
             'buystock': self._handle_buy_stock,
             'sellstock': self._handle_sell_stock,
             'withdraw': self._handle_withdraw_command,
-            'testmode': self._handle_test_mode
+            'testmode': self._handle_test_mode,
+            'watch': self._handle_watch,
+            'unwatch': self._handle_unwatch
         }
 
         self._update_all_users()
@@ -352,6 +354,42 @@ class OttoBroker():
             return ('Test mode is ' + ('enabled' if active else 'disabled'), True)
         else:
             return ('Can\'t let you do that, StarFox. Test mode is still ' + ('enabled' if self._get_test_mode() else 'disabled'), False)
+
+    async def _handle_watch(self, command_args, message_author):
+        if len(command_args) < 3:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        
+        user = self._get_user(message_author.id)
+        symbol = command_args[2]
+        data = self._broker_api_wrapper('/set_watch',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+            }
+        )
+
+        user = data['user']
+        self._user_cache[user['id']] = user
+        return ('{} has been added to your watches, {}'.format(symbol.upper(), user['display_name']), True)
+
+    async def _handle_unwatch(self, command_args, message_author):
+        if len(command_args) < 3:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        
+        user = self._get_user(message_author.id)
+        symbol = command_args[2]
+        data = self._broker_api_wrapper('/remove_watch',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+            }
+        )
+
+        user = data['user']
+        self._user_cache[user['id']] = user
+        return ('{} has been removed from your watches, {}'.format(symbol.upper(), user['display_name']), True)
 
     async def handle_command(self, request_id, response_id, message, bot, parser, web):
         command_args = message.content.split(' ')
