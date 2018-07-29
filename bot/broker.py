@@ -36,7 +36,8 @@ class OttoBroker():
             'withdraw': self._handle_withdraw_command,
             'testmode': self._handle_test_mode,
             'watch': self._handle_watch,
-            'unwatch': self._handle_unwatch
+            'unwatch': self._handle_unwatch,
+            'help': self._handle_help
         }
 
         self._update_all_users()
@@ -390,6 +391,14 @@ class OttoBroker():
         user = data['user']
         self._user_cache[user['id']] = user
         return ('{} has been removed from your watches, {}'.format(symbol.upper(), user['display_name']), True)
+        
+    async def _handle_help(self, command_args, message_author):
+        result = 'Supported commands:\n'
+        cmd_lines = []
+        for cmd in self._command_mapping:
+            cmd_lines.append('`$broker {}`'.format(cmd))
+
+        return (result + '\n'.join(cmd_lines), True)
 
     async def handle_command(self, request_id, response_id, message, bot, parser, web):
         command_args = message.content.split(' ')
