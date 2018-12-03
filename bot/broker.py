@@ -140,7 +140,7 @@ class OttoBroker():
         if len(command_args) < 4:
             raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
         symbol = command_args[2]
-        quantity = self._get_int(command_args[3])
+        quantity = command_args[3]
         
         data = self._broker_api_wrapper('/buy_long',
             {
@@ -168,7 +168,7 @@ class OttoBroker():
         if len(command_args) < 4:
             raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
         symbol = command_args[2]
-        quantity = self._get_int(command_args[3])
+        quantity = command_args[3]
         
         data = self._broker_api_wrapper('/sell_long',
             {
@@ -197,7 +197,7 @@ class OttoBroker():
         if len(command_args) < 4:
             raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
         symbol = command_args[2]
-        quantity = self._get_int(command_args[3])
+        quantity = command_args[3]
         
         data = self._broker_api_wrapper('/buy_short',
             {
@@ -225,7 +225,7 @@ class OttoBroker():
         if len(command_args) < 4:
             raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
         symbol = command_args[2]
-        quantity = self._get_int(command_args[3])
+        quantity = command_args[3]
         
         data = self._broker_api_wrapper('/sell_short',
             {
@@ -305,10 +305,10 @@ class OttoBroker():
             liabilities_orig_total = Decimal(0)
             liability_lines = []
 
-            for stock in user['longs']:
-                count = sum([x['count'] for x in user['longs'][stock]['stocks']])
-                cur_purchase_stock = sum([Decimal(x['purchase_cost']) * x['count'] for x in user['longs'][stock]['stocks']])
-                full_stock_value = Decimal(user['longs'][stock]['total_value'])
+            for stock in user['holdings']:
+                count = sum([x['count'] for x in user['holdings'][stock]['stocks']])
+                cur_purchase_stock = sum([Decimal(x['purchase_cost']) * x['count'] for x in user['holdings'][stock]['stocks']])
+                full_stock_value = Decimal(user['holdings'][stock]['total_value'])
                 assets_orig_total += cur_purchase_stock
 
                 asset_lines.append([
