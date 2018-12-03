@@ -50,23 +50,3 @@ class Command():
             return other.command_type_id == self.command_type_id and other.text == self.text
         elif not other.case_sensitive and not self.case_sensitive:
             return other.command_type_id == self.command_type_id and other.text.upper() == self.text.upper()
-
-class BrokerUser():
-    def __init__(self, raw):
-        self.id = raw[0]
-        self.created = raw[1]
-        self.balance = raw[2]
-        self.display_name = raw[3]
-
-class BrokerStock():
-    def __init__(self, raw):
-        self.id = raw[0]
-        self.stock_type = raw[1]
-        self.user_id = raw[2]
-        self.transaction_id = raw[3]
-        self.ticker_symbol = raw[4]
-        self.purchase_cost = raw[5]
-        self.purchase_time = raw[6]
-        self.expiration_time = raw[7]
-        self.sell_cost = raw[8]
-        self.sell_time = raw[9]

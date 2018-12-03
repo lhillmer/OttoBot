@@ -1,4 +1,4 @@
-from webWrapper import RestWrapper
+from webWrapper import RestWrapper, SynchronousRestWrapper
 
 import json
 import logging
@@ -10,32 +10,36 @@ from decimal import Decimal, ROUND_HALF_UP, ROUND_HALF_DOWN
 _logger = logging.getLogger()
 
 class OttoBroker():
-    def __init__(self, webWrapper, db, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, test_user_id):
-        self._rest = RestWrapper(webWrapper,
-            "https://api.iextrading.com/1.0", {})
-        self._db = db
-        self._user_cache = {}
-        self._user_stocks = {}
+    STATUS_KEY = 'status'
+    MESSAGE_KEY = 'message'
+
+    STATUS_SUCCESS = 'success'
+
+    def __init__(self, webWrapper, db, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key):
+        self._stock_api = RestWrapper(webWrapper, "https://api.iextrading.com/1.0", {})
+
+        self._broker_api = SynchronousRestWrapper("http://otto.runtimeexception.net/broker", {})
+        self._broker_api_key = broker_api_key
+        
         self._tip_verifier = tip_verifier
         self._exchange_rate = Decimal(exchange_rate)
         self._broker_id = broker_id
         self._tip_command = tip_command
-
-        self._test_mode = False
-        self._test_user_id = test_user_id
         self._super_user_role = super_user_role
 
         self._command_mapping = {
             'register': self._handle_register,
             'balance': self._handle_balance,
-            'liststocks': self._handle_list_stocks,
-            'buystock': self._handle_buy_stock,
-            'sellstock': self._handle_sell_stock,
+            'buystock': self._handle_buy_long,
+            'sellstock': self._handle_sell_long,
+            'buyshort': self._handle_buy_short,
+            'sellshort': self._handle_sell_short,
             'withdraw': self._handle_withdraw_command,
-            'testmode': self._handle_test_mode
+            'testmode': self._handle_test_mode,
+            'watch': self._handle_watch,
+            'unwatch': self._handle_unwatch,
+            'help': self._handle_help
         }
-
-        self._populate_user_cache()
 
     @staticmethod
     def is_market_live(time=None):
@@ -57,7 +61,7 @@ class OttoBroker():
     
     async def _get_stock_value(self, symbol_list):
         try:
-            response = await self._rest.request('/stock/market/batch/', {'types': 'quote', 'symbols': ','.join(symbol_list)})
+            response = await self._stock_api.request('/stock/market/batch/', {'types': 'quote', 'symbols': ','.join(symbol_list)})
             unparsed = await response.text()
             data = None
             try:
@@ -110,236 +114,292 @@ class OttoBroker():
         except Exception as e:
             raise Exception('Couldn\'t get stock value: {}'.format(str(e)))
     
-    
-    def _populate_user_cache(self):
-        self._user_cache = {}
-        user_list = self._db.broker_get_all_users()
-
-        for user in user_list:
-            self._user_cache[user.id] = user
-            self._user_stocks[user.id] = self._load_user_stocks(user.id)
-    
-    def _update_single_user(self, user_id):
-        user = self._db.broker_get_single_user(user_id)
-        self._user_cache[user.id] = user
-        self._user_stocks[user.id] = self._load_user_stocks(user.id)
-    
-    def _load_user_stocks(self, user_id):
-        stock_list = self._db.broker_get_stocks_by_user(user_id)
+    def _broker_api_wrapper(self, endpoint, params):
+        unparsed = self._broker_api.request(endpoint, params)
+        data = None
+        try:
+            data = json.loads(unparsed)
+        except Exception:
+            raise Exception('Invalid Broker API response: {}'.format(unparsed))
+        if not isinstance(data, dict):
+            raise Exception('From broker, unexpected data type ' + str(type(data)))
         
-        # create a dictionary of the stocks, grouped by ticker
-        stock_dict = {}
-        for stock in stock_list:
-            if stock.ticker_symbol in stock_dict:
-                stock_dict[stock.ticker_symbol].append(stock)
-            else:
-                stock_dict[stock.ticker_symbol] = [stock]
-
-        return stock_dict
-
-    def _get_user(self, user_id):
-        if self._test_mode:
-            return self._user_cache[self._test_user_id]
-        elif user_id in self._user_cache:
-            return self._user_cache[user_id]
+        if data[self.STATUS_KEY] == self.STATUS_SUCCESS:
+            return data
         else:
-            raise Exception('You dn\'t have an account. Create one with `$broker register`')
+            raise Exception('Broker API trying to access endpoint {}, returned error {}'.format(endpoint, data['message']))
     
-    async def _buy_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
-        if not self.is_market_live() and not self._test_mode:
-            raise Exception('Can\'t trade after hours')
-        # make the transaction, and report success
-        result = self._db.broker_buy_regular_stock(user_id, symbol, per_stock_cost, quantity)
-        if result is not None:
-            # if we succeeded, update the cached user
-            self._update_single_user(user_id)
-            return '{}, You purchased {} {} at {} each, for a total cost of {}'.format(user_display_name, quantity, symbol, per_stock_cost, per_stock_cost * quantity)
-        raise Exception('Sorry {}, something went wrong in the database. Go yell at :otto:'.format(user_display_name))
+    def _get_test_mode(self):
+        return self._broker_api_wrapper('/test_mode', {})['test_mode']
+        
+    def _get_user(self, user_id):
+        return self._broker_api_wrapper('/user_info',{'userid': user_id, 'shallow': 'false', 'historical': 'true'})['user']
     
-    async def _handle_buy_stock(self, command_args, message_author):
-        try:
-            user = self._get_user(message_author.id)
-            if len(command_args) < 4:
-                raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
-            symbol = command_args[2].upper()
-            quantity = self._get_int(command_args[3])
-            # here, since there's only one value, we can assume that if there was no exception, we got the value
-            stock_vals, _, _ = await self._get_stock_value([symbol])
-            per_stock_cost = stock_vals[symbol]
+    async def _handle_buy_long(self, command_args, message_author):
+        user = self._get_user(message_author.id)
+        if len(command_args) < 4:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        symbol = command_args[2]
+        quantity = self._get_int(command_args[3])
+        
+        data = self._broker_api_wrapper('/buy_long',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+                'quantity': quantity
+            }
+        )
 
-            # make sure the user can afford the transaction
-            cur_user = self._user_cache[user.id]
-            if cur_user.balance < (quantity * per_stock_cost):
-                full_cost = Decimal(quantity * per_stock_cost).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
-                raise Exception('Sorry {}, you don\'t have sufficient funds ({}) to buy {} {} stocks at {}'.format(cur_user.display_name,
-                    full_cost, quantity, symbol, per_stock_cost))
+        user = data['user']
+        
+        return (
+            '{}, You purchased {} {} at {} each, for a total cost of {}'.format(
+                user['display_name'],
+                data['quantity'],
+                data['symbol'],
+                data['per_stock_amt'],
+                data['total_amt']),
+            True
+        )
 
-            return (await self._buy_regular_stock(cur_user.id, cur_user.display_name, symbol, per_stock_cost, quantity), True)
-        except Exception as e:
-            return ('No transaction occured. {}'.format(str(e)), False)
+    async def _handle_sell_long(self, command_args, message_author):
+        user = self._get_user(message_author.id)
+        if len(command_args) < 4:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        symbol = command_args[2]
+        quantity = self._get_int(command_args[3])
+        
+        data = self._broker_api_wrapper('/sell_long',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+                'quantity': quantity
+            }
+        )
+
+        user = data['user']
+        
+        return (
+            '{}, You sold {} {} at {} each, for a total gain of {}.\nYou now have {}'.format(
+                user['display_name'],
+                data['quantity'],
+                data['symbol'],
+                data['per_stock_amt'],
+                data['total_amt'],
+                user['balance']),
+            True
+        )
     
-    async def _sell_regular_stock(self, user_id, user_display_name, symbol, per_stock_cost, quantity):
-        if not self.is_market_live() and not self._test_mode:
-            raise Exception('Can\'t trade after hours')
-        result = self._db.broker_sell_stock(user_id, symbol, per_stock_cost, quantity)
-        if result is not None:
-            # if we succeeded, update the cached user
-            self._update_single_user(user_id)
-            cur_user = self._user_cache[user_id]
-            return 'Congratulations {}, your new balance is {}'.format(user_display_name, cur_user.balance)
-        raise Exception('No transaction occurred. Sorry {}, something went wrong trying to sell the stocks. Go yell at :otto:'.format(user_display_name))
+    async def _handle_buy_short(self, command_args, message_author):
+        user = self._get_user(message_author.id)
+        if len(command_args) < 4:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        symbol = command_args[2]
+        quantity = self._get_int(command_args[3])
+        
+        data = self._broker_api_wrapper('/buy_short',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+                'quantity': quantity
+            }
+        )
 
-    async def _handle_sell_stock(self, command_args, message_author):
-        try:
-            user = self._get_user(message_author.id)
-            if len(command_args) < 4:
-                return ('Sorry, you don\'t seem to have enough values in your message for me to parse.', False)
-            symbol = command_args[2].upper()
-            quantity = self._get_int(command_args[3])
-            # here, since there's only one value, we can assume that if there was no exception, we got the value
-            stock_vals, _, _ = await self._get_stock_value([symbol])
-            per_stock_cost = stock_vals[symbol]
-            
-            # make sure the user can afford the transaction
-            cur_user = self._user_cache[user.id]
-            cur_stocks = 0
-            if symbol in self._user_stocks[user.id]:
-                cur_stocks = len(self._user_stocks[user.id][symbol])
-            if quantity > cur_stocks:
-                raise Exception('Sorry {}, you only have {} {} stocks'.format(cur_user.display_name, cur_stocks, symbol))
+        user = data['user']
+        
+        return (
+            '{}, You purchased {} {} at {} each, for a total cost of {}'.format(
+                user['display_name'],
+                data['quantity'],
+                data['symbol'],
+                data['per_stock_amt'],
+                data['total_amt']),
+            True
+        )
 
-            return (await self._sell_regular_stock(cur_user.id, cur_user.display_name, symbol, per_stock_cost, quantity), True)
-        except Exception as e:
-            return ('No transaction occurred. {}'.format(str(e)), False)
+    async def _handle_sell_short(self, command_args, message_author):
+        user = self._get_user(message_author.id)
+        if len(command_args) < 4:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        symbol = command_args[2]
+        quantity = self._get_int(command_args[3])
+        
+        data = self._broker_api_wrapper('/sell_short',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+                'quantity': quantity
+            }
+        )
 
-    async def _handle_list_stocks(self, command_args, message_author):
-        try:
-            user = self._get_user(message_author.id)
-            stock_string = ''
-            for symbol in self._user_stocks[user.id]:
-                stock_string += '{} {} stocks, '.format(len(self._user_stocks[user.id][symbol]), symbol.upper())
-            if stock_string:
-                stock_string = stock_string[:-2]
-                return ('{}, you have the following stocks: {}'.format(user.display_name, stock_string), True)
-            else:
-                return ('{}, you have no stocks!'.format(user.display_name), True)
-        except Exception as e:
-            return ('Could not list stocks: {}'.format(str(e)), False)
+        user = data['user']
+        
+        return (
+            '{}, You sold {} {} at {} each, for a total gain of {}.\nYou now have {}'.format(
+                user['display_name'],
+                data['quantity'],
+                data['symbol'],
+                data['per_stock_amt'],
+                data['total_amt'],
+                user['balance']),
+            True
+        )
     
     async def _handle_register(self, command_args, message_author):
-        if self._test_mode:
-            return ('User {} already exists'.format(self._user_cache[self._test_user_id].display_name), False)
-        elif message_author.id in self._user_cache:
-            return ('User {} already exists'.format(self._user_cache[message_author.id].display_name), False)
-        self._db.broker_create_user(message_author.id, message_author.name)
-        self._update_single_user(message_author.id)
-        new_user = self._user_cache[message_author.id]
-        return ('Welcome, {}. You have a starting balance of {}'.format(new_user.display_name, new_user.balance), True)
+        user = self._broker_api_wrapper('/register',
+            {
+                'userid': message_author.id,
+                'displayname': message_author.name,
+                'apikey': self._broker_api_key
+            }
+        )['user']
+
+        return ('Welcome, {}. You have a starting balance of {}'.format(user['display_name'], user['balance']), True)
+    
+    @staticmethod
+    def _format_section_helper(lines):
+        result = []
+        prefix_len = max([len(x[0]) for x in lines])
+        amt_len = max([len(str(x[1])) for x in lines])
+        try:
+            pct_gain_len = max([len(str(abs(x[2])))for x in lines if isinstance(x[2], Decimal)])
+        except Exception:
+            # no stocks means max([]), which is an error
+            # just set it to 0
+            pct_gain_len = 0
+
+        for line in lines:
+            if line[2] is not None:
+                result.append('{} : {} ({} {} %)'.format(
+                    line[0].ljust(prefix_len),
+                    str(line[1]).rjust(amt_len),
+                    '+' if line[2] >= 0 else '-',
+                    str(abs(line[2])).rjust(pct_gain_len)
+                ))
+            else:
+                result.append('{} : {}'.format(
+                    line[0].ljust(prefix_len),
+                    str(line[1]).rjust(amt_len),
+                ))
+        
+        return result
 
     async def _handle_balance(self, command_args, message_author):
         try:
             user = self._get_user(message_author.id)
 
-            result_lines = [
-                ['Cash', user.balance, None]
-            ]
             errors = []
-            total = user.balance
 
-            stock_counts = {}
-            stock_symbols = []
-            purchased_stock_total = user.balance
-            current_stock_total = user.balance
-            for stock in self._user_stocks[user.id]:
-                stock_symbols.append(stock)
-                stock_counts[stock] = len(self._user_stocks[user.id][stock])
-            if stock_symbols:
-                stock_vals, unknown_vals, mistyped_vals = await self._get_stock_value(stock_symbols)
+            cash = user['balance']
+            assets_total = Decimal(user['assets'])
+            assets_orig_total = Decimal(cash)
+            asset_lines = [
+                ['Cash', cash, None]
+            ]
 
-                if unknown_vals:
-                    errors.append('The following stocks had unknown values: {}'.format(unknown_vals))
-                
-                if mistyped_vals:
-                    errors.append('The following stock values could not be converted: {}'.format(mistyped_vals))
-                
-                for stock in stock_vals:
-                    full_stock_value = stock_vals[stock] * stock_counts[stock]
-                    full_stock_value = Decimal(full_stock_value.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
-                    total += full_stock_value
-                    current_stock_total += full_stock_value
+            liabilities_total = Decimal(user['liabilities'])
+            liabilities_orig_total = Decimal(0)
+            liability_lines = []
 
-                    purchase_stock_value = Decimal(0)
-                    for owned_stock in self._user_stocks[user.id][stock]:
-                        purchase_stock_value += owned_stock.purchase_cost
-                    purchased_stock_total += purchase_stock_value
-                    
-                    result_lines.append([
-                        str(stock_counts[stock]) + ' ' + stock,
-                        full_stock_value,
-                        (Decimal(100) * (full_stock_value - purchase_stock_value) / purchase_stock_value).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
-                    ])
+            for stock in user['longs']:
+                count = sum([x['count'] for x in user['longs'][stock]['stocks']])
+                cur_purchase_stock = sum([Decimal(x['purchase_cost']) * x['count'] for x in user['longs'][stock]['stocks']])
+                full_stock_value = Decimal(user['longs'][stock]['total_value'])
+                assets_orig_total += cur_purchase_stock
 
-            result_lines.append([
-                'Total',
-                total,
-                (Decimal(100) * (current_stock_total - purchased_stock_total) / purchased_stock_total).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
-            ])
+                asset_lines.append([
+                    '{} {}'.format(count, stock),
+                    full_stock_value,
+                    (Decimal(100) * (full_stock_value - cur_purchase_stock) / cur_purchase_stock).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
+
+            if assets_orig_total == 0:
+                asset_lines.append([
+                    'Total',
+                    assets_total,
+                    Decimal(0)
+                ])
+            else:
+                asset_lines.append([
+                    'Total',
+                    assets_total,
+                    (Decimal(100) * (assets_total - assets_orig_total) / assets_orig_total).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
+
+            for stock in user['shorts']:
+                count = sum([x['count'] for x in user['shorts'][stock]['stocks']])
+                cur_sold_stock = sum([Decimal(x['sell_cost']) * x['count'] for x in user['shorts'][stock]['stocks']])
+                full_stock_value = Decimal(user['shorts'][stock]['total_value'])
+                liabilities_orig_total += cur_sold_stock
+
+                liability_lines.append([
+                    '{} {}'.format(count, stock),
+                    full_stock_value,
+                    (Decimal(100) * (1 - (full_stock_value / cur_sold_stock))).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
+
+            if liabilities_orig_total == 0:
+                liability_lines.append([
+                    'Total',
+                    liabilities_total,
+                    Decimal(0)
+                ])
+            else:
+                liability_lines.append([
+                    'Total',
+                    liabilities_total,
+                    (Decimal(100) *  (1 - (liabilities_total / liabilities_orig_total))).quantize(Decimal('.01'), rounding=ROUND_HALF_UP)
+                ])
+
+            result = [
+                'Assets:'
+            ]
+            result.extend(self._format_section_helper(asset_lines))
+            result.append('')
+            result.append('Liabilities:')
+            result.extend(self._format_section_helper(liability_lines))
+            result.append('')
+            result.append('Net Worth: {}'.format(assets_total - liabilities_total))
 
             if errors:
-                result_lines.append(['Errors', ', '.join(errors), None])
-            
-            prefix_len = max([len(x[0]) for x in result_lines])
-            amt_len = max([len(str(x[1])) for x in result_lines])
-            try:
-                pct_gain_len = max([len(str(abs(x[2])))for x in result_lines if isinstance(x[2], Decimal)])
-            except Exception:
-                # no stocks means max([]), which is an error
-                # just set it to 0
-                pct_gain_len = 0
-
-            result = []
-            for line in result_lines:
-                if line[2] is not None:
-                    result.append('{} : {} ({} {} %)'.format(
-                        line[0].ljust(prefix_len),
-                        str(line[1]).rjust(amt_len),
-                        '+' if line[2] >= 0 else '-',
-                        str(abs(line[2])).rjust(pct_gain_len)
-                    ))
-                else:
-                    result.append('{} : {}'.format(
-                        line[0].ljust(prefix_len),
-                        str(line[1]).rjust(amt_len),
-                    ))
+                result.append('Errors: {}'.format(', '.join(errors)))
             
             result = '\n'.join(result)
 
-            return ('{}, your balance is:\n`{}`'.format(user.display_name, result), True)
+            return ('{}, your balance is:\n`{}`'.format(user['display_name'], result), True)
         except Exception as e:
             _logger.exception(e)
             return ('Could not report balance: {}'.format(str(e)), False)
     
     async def _handle_withdraw_command(self, command_args, message_author):
-        try:
-            if self._test_mode:
-                raise Exception('Can\'t withdraw in test mode')
-            user = self._get_user(message_author.id)
-            if len(command_args) < 3:
-                raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
-            amount = Decimal(command_args[2])
-            # make sure the user can afford the transaction
-            cur_user = self._user_cache[message_author.id]
-            if cur_user.balance < amount:
-                raise Exception('Sorry {}, you have {}, not {}'.format(cur_user.display_name, cur_user.balance, amount))
+        if len(command_args) < 3:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        
+        if self._get_test_mode():
+            raise Exception('No withdrawing in test mode')
 
-            momocoin_amount = amount / self._exchange_rate
-            momocoin_amount = Decimal(momocoin_amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+        user = self._get_user(message_author.id)
+        amount = command_args[2]
+        data = self._broker_api_wrapper('/withdraw',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'amount': amount,
+                'reason': 'Withdrawal to Momocoins'
+            }
+        )
 
-            self._db.broker_give_money_to_user(cur_user.id, -amount, 'Withdrawal to Momocoins')
-            self._update_single_user(cur_user.id)
-            return (self._tip_command.format(message_author.mention, momocoin_amount), True)
-        except Exception as e:
-            return ('No withdrawal occurred. {}'.format(str(e)), False)
+        user = data['user']
+
+        # pull the amount from the response, just in case
+        amount = Decimal(data['amount'])
+        momocoin_amount = amount / self._exchange_rate
+        momocoin_amount = Decimal(momocoin_amount.quantize(Decimal('.01'), rounding=ROUND_HALF_UP))
+        return (self._tip_command.format(message_author.mention, momocoin_amount), True)
 
     async def _handle_test_mode(self, command_args, message_author):
         is_super_user = False
@@ -349,10 +409,52 @@ class OttoBroker():
                 break
 
         if is_super_user:
-            self._test_mode = not self._test_mode
-            return ('Test mode is now ' + ('enabled' if self._test_mode else 'disabled'), True)
+            active = self._broker_api_wrapper('/toggle_test_mode', {'apikey': self._broker_api_key})['test_mode']
+            return ('Test mode is ' + ('enabled' if active else 'disabled'), True)
         else:
-            return ('Can\'t let you do that, StarFox. Test mode is still ' + ('enabled' if self._test_mode else 'disabled'), False)
+            return ('Can\'t let you do that, StarFox. Test mode is still ' + ('enabled' if self._get_test_mode() else 'disabled'), False)
+
+    async def _handle_watch(self, command_args, message_author):
+        if len(command_args) < 3:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        
+        user = self._get_user(message_author.id)
+        symbol = command_args[2]
+        data = self._broker_api_wrapper('/set_watch',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+            }
+        )
+
+        user = data['user']
+        return ('{} has been added to your watches, {}'.format(symbol.upper(), user['display_name']), True)
+
+    async def _handle_unwatch(self, command_args, message_author):
+        if len(command_args) < 3:
+            raise Exception('Sorry, you don\'t seem to have enough values in your message for me to parse.')
+        
+        user = self._get_user(message_author.id)
+        symbol = command_args[2]
+        data = self._broker_api_wrapper('/remove_watch',
+            {
+                'userid': user['id'],
+                'apikey': self._broker_api_key,
+                'symbol': symbol,
+            }
+        )
+
+        user = data['user']
+        return ('{} has been removed from your watches, {}'.format(symbol.upper(), user['display_name']), True)
+        
+    async def _handle_help(self, command_args, message_author):
+        result = 'Supported commands:\n'
+        cmd_lines = []
+        for cmd in self._command_mapping:
+            cmd_lines.append('`$broker {}`'.format(cmd))
+
+        return (result + '\n'.join(cmd_lines), True)
 
     async def handle_command(self, request_id, response_id, message, bot, parser, web):
         command_args = message.content.split(' ')
@@ -363,7 +465,10 @@ class OttoBroker():
         command = command_args[1]
 
         if command in self._command_mapping:
-            return await self._command_mapping[command](command_args, message.author)
+            try:
+                return await self._command_mapping[command](command_args, message.author)
+            except Exception as e:
+                return ('Operation failed: {}'.format(e), False)
         else:
             return ('Did not recognize command: ' + command, False)
 
@@ -389,13 +494,24 @@ class OttoBroker():
                         amount = Decimal(amount.quantize(Decimal('.01'), rounding=ROUND_HALF_DOWN))
                         
                         # just an arbitrary way to force money into the test account. 
-                        if self._test_mode:
-                            amount = 500
+                        if self._get_test_mode():
+                            amount = 15000
                         
                         if amount > 0:
-                            self._db.broker_give_money_to_user(user.id, amount, 'Tipping Ottobot')
-                            self._update_single_user(user.id)
-                            return 'Ottobot winks at you, ' + user.display_name + ', and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(self._user_cache[user.id].balance)
+                            data = self._broker_api_wrapper('/deposit',
+                                {
+                                    'userid': sender,
+                                    'apikey': self._broker_api_key,
+                                    'amount': amount,
+                                    'reason': 'Withdrawal to Momocoins'
+                                }
+                            )
+
+                            user = data['user']
+                            return 'Ottobot winks at you, {}, and walks away whistling. Your pockets feel heavier. (New balance: {})'.format(
+                                user['display_name'],
+                                user['balance']
+                            )
                         else:
                             return 'That tip rounded to 0 cents. You get nothing, good day sir!'
 
