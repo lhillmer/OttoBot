@@ -285,18 +285,21 @@ class FunctionExecutor():
 
     async def crypto_data(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ")
-        symbol = split[1]
-        result = "Crypto Data ({}):\n".format(symbol)
-        try:
-            symbol_data = await bot.crypto.get_info(symbol)
-        except Exception as e:
-            symbol_data = str(e)
-
-        if isinstance(symbol_data, dict):
-            prefix_len = max([len(x) for x in symbol_data])
-            result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
+        if len(split) < 2:
+            result = "No Symbol provided"
         else:
-            result = "An error occurred getting crypto data: {}".format(symbol_data)
+            symbol = split[1]
+            result = "Crypto Data ({}):\n".format(symbol)
+            try:
+                symbol_data = await bot.crypto.get_info(symbol)
+            except Exception as e:
+                symbol_data = str(e)
+
+            if isinstance(symbol_data, dict):
+                prefix_len = max([len(x) for x in symbol_data])
+                result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
+            else:
+                result = "An error occurred getting crypto data: {}".format(symbol_data)
         
         return (result, True)
     
