@@ -257,6 +257,7 @@ class StockInfo():
                     change_percent = str(float(data.get('changePercent', '0')) * 100)
                     if '.' in change_percent:
                         dot_pos = index('.')
+                        _logger.info("index of . in {} is {}".format(dot_pos, change_percent))
                         change_percent = change_percent[0:dot_pos + 3]
                     else:
                         change_percent = "bwuh"
