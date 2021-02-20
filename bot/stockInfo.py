@@ -48,6 +48,7 @@ class StockInfo():
         if '.' in num_str:
             dot_pos = num_str.index('.')
             num_str = num_str[0:dot_pos + 3]
+        return num_str
     
     @staticmethod
     def get_wordy_num(num):
