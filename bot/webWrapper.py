@@ -46,9 +46,7 @@ class WebWrapper():
         return await task
 
     async def queueRequest(self, url, timeout):
-        coro = self.fetch(url, timeout)
-        self.requests.append(coro)
-        result = await coro
+        result = await self.fetch(url, timeout)
         return result
 
     '''this code might be totally awful. I still don't fully understand async shenanigans'''

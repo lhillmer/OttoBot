@@ -9,9 +9,9 @@ import copy
 _logger = logging.getLogger()
 
 class StockInfo():
-    def __init__(self, webWrapper):
+    def __init__(self, webWrapper, iex_api_key):
         self.rest = RestWrapper(webWrapper,
-            "https://api.iextrading.com/1.0", {})
+            "https://cloud.iexapis.com/stable", {'token': iex_api_key})
         self.date_time_format = '%Y-%m-%d %H:%M:%S'
         self.date_format = '%Y-%m-%d'
         self.error_key = 'Error'
@@ -34,6 +34,8 @@ class StockInfo():
         self.company_name_key = 'CompanyName'
         self.pe_ratio_key = 'PE Ratio'
         self.change_percent_key = 'Change %'
+        self.latest_volume_key = 'LatestVolume'
+        self.average_volume_key = 'AverageVolume'
 
     @staticmethod
     def is_market_live(time=None):
@@ -244,15 +246,31 @@ class StockInfo():
                     self.error_key: 'Unexpected data type ' + str(type(data))
                 }
             else:
+                market_cap = 'ERROR'
+                try:
+                    market_cap = self.get_wordy_num(int(data.get('marketCap', '0')))
+                except:
+                    pass
+                
+                change_percent = 'ERROR'
+                try:
+                    change_percent = str(float(data.get('changePercent', '0')) * 100)
+                    if '.' in change_percent:
+                        dot_pos = index('.')
+                        change_percent = change_percent[0:dot_pos + 3]
+                except:
+                    pass
+
                 result = {
-                    self.company_name_key: data['companyName'],
-                    self.open_key: data['open'],
-                    #self.market_kap_key: "{:,.f}".format(float(data['marketCap'])),
-                    self.market_cap_key: self.get_wordy_num(int(data['marketCap'])),
-                    self.high_key: data['high'],
-                    self.low_key: data['low'],
-                    self.change_percent_key: float(data['changePercent']) * 100,
-                    self.pe_ratio_key: data['peRatio'],
+                    self.company_name_key: data.get('companyName', 'ERROR'),
+                    self.open_key: data.get('open', 'ERROR'),
+                    self.market_cap_key: market_cap,
+                    self.high_key: data.get('high', 'ERROR'),
+                    self.low_key: data.get('low', 'ERROR'),
+                    self.change_percent_key: change_percent,
+                    self.pe_ratio_key: data.get('peRatio', 'ERROR'),
+                    self.latest_volume_key: data.get('latestVolume', 'ERROR'),
+                    self.average_volume_key: data.get('avgTotalVolume', 'ERROR'),
                 }
                 using_close = False
                 if data['latestSource'] == 'Close':

@@ -144,7 +144,7 @@ class ChatParser():
     async def dumb_wrapper(self, message):
         yield message
 
-    #helper function to encapsulate response logic (for use with pending responses)
+    # helper function to encapsulate response logic (for use with pending responses)
     async def get_responses(self, command_id, response_id, request_id, message, bot, web, display_response_id, max_number_of_responses=-1):
         response = self.responses[command_id][response_id]
         response_count = 0

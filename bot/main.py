@@ -11,7 +11,12 @@ import sys
 import os
 
 handler = handlers.TimedRotatingFileHandler("logs/log_ottobot.log", when="midnight", interval=1)
-logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+format_string = '%(asctime)s,%(levelname)-8s [%(process)d][%(pathname)s:%(lineno)d] %(message)s'
+handler.setFormatter(logging.Formatter(format_string))
+handler.setLevel(logging.DEBUG)
+
+
+logging.basicConfig(format=format_string,
     filename=os.devnull,
     level=logging.INFO)
 _logger = logging.getLogger()
@@ -20,10 +25,10 @@ _logger.addHandler(handler)
 ensure_future = asyncio.ensure_future
 
 class OttoBot:
-    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key):
+    def __init__(self, token, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key, iex_api_key, coin_market_cap_api_key):
         self.loop = asyncio.get_event_loop()
         self.web = WebWrapper(self.loop)
-        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key)
+        self.discord = DiscordWrapper(token, self.web, prefix, connectionString, spamLimit, spamTimeout, display_response_id, broker_id, super_user_role, tip_verifier, exchange_rate, tip_command, broker_api_key, iex_api_key, coin_market_cap_api_key)
         self.discord_task = None
         self.web_task = None
         self.response_checker_task = None
@@ -54,9 +59,7 @@ class OttoBot:
 
         self.discord_task = ensure_future(self.discord.start())
         self.web_task = ensure_future(self.web.run())
-        self.response_checker_task = ensure_future(self.discord.check_pending_responses())
-        if (globalSettings.config.get('DEFAULT', 'btc_status') == 'True'):
-            self.status_updater_task = ensure_future(self.discord.start_status_updater())
+        #self.response_checker_task = ensure_future(self.discord.check_pending_responses())
         
         try:
             self.loop.run_until_complete(self.process())
@@ -75,13 +78,22 @@ class OttoBot:
             ensure_future(self.discord.disconnect())
     
     async def process(self):
-        task_list = [self.web_task, self.discord_task, self.response_checker_task]
+        #task_list = [self.web_task, self.discord_task, self.response_checker_task]
+        task_list = [self.web_task, self.discord_task]
         if self.status_updater_task:
             task_list.append(self.status_updater_task)
+        """
+        TODO: this was here before. some variant that re-instantiates *just* the discord portion of the app
+        should be implemented at some point in the future
         while True:
-            await asyncio.wait(task_list, return_when=asyncio.ALL_COMPLETED)
+            _logger.info('about to wait...')
+            await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
             if self.do_shutdown:
-                break
+                _logger.info('Shutdown was initiated')
+                return
+        """
+
+        await asyncio.wait(task_list, return_when=asyncio.FIRST_COMPLETED)
 
 
 def main():
@@ -97,7 +109,9 @@ def main():
             globalSettings.config.get('DEFAULT', 'tip_verifier_id'),
             globalSettings.config.get('DEFAULT', 'exchange_rate'),
             globalSettings.config.get('DEFAULT', 'tip_command'),
-            globalSettings.config.get('DEFAULT', 'broker_api_key'))
+            globalSettings.config.get('DEFAULT', 'broker_api_key'),
+            globalSettings.config.get('DEFAULT', 'iex_api_key'),
+            globalSettings.config.get('DEFAULT', 'coin_market_cap_api_key'))
     bot.start()
 
 main()

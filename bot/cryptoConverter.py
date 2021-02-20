@@ -1,4 +1,5 @@
 from webWrapper import RestWrapper
+from stockInfo import StockInfo
 
 import json
 import logging
@@ -6,47 +7,22 @@ import logging
 _logger = logging.getLogger()
 
 class CryptoConverter():
-    def __init__(self, webWrapper):
-        self.rest = RestWrapper(webWrapper,
-            "https://api.coinmarketcap.com")
+    def __init__(self, webWrapper, api_key):
+        self.rest = RestWrapper(webWrapper, "https://pro-api.coinmarketcap.com", {'CMC_PRO_API_KEY': api_key})
 
-    async def get_symbols(self):
-        result = {}
-        response = await self.rest.request('/v2/listings', {})
-        data = json.loads(await response.text())
-        if data:
-            for coin in data['data']:
-                result[coin['symbol']] = str(coin['id'])
-        else:
-            _logger.error("Issue with crypto request")
-        return result
-
-    async def convert(self, base_type, target_type):
-        result = 0
-        response = await self.rest.request("/v2/ticker/" + base_type, {'convert': target_type.upper()})
-        data = json.loads(await response.text())
+    async def get_info(self, crypto_symbol):
+        response = await self.rest.request("/v1/cryptocurrency/quotes/latest/" + base_type, {'symbol': crypto_symbol})
+        parsed_response = json.loads(await response.text())
         try:
-            result = float(data['data']['quotes'][target_type]['price'])
+            main_data = parsed_response['data'][crypto_symbol]
+            result = {
+                "Price": main_data['quote']['USD']['price'],
+                "24h % Change": main_data['quote']['USD']['percent_change_24h'],
+                "Marketcap": StockInfo.get_wordy_num(main_data['quote']['USD']['market_cap']),
+            }
         except Exception as e:
-            _logger.error("something happened in conversion: " + str(e))
+            result = "Error occurred parsing crypto data: " + str(e)
+            _logger.error(result)
+            _logger.exception(e)
         return result
     
-    async def market_cap(self, coin=None):
-        result = 0
-        
-        if coin is None:
-            response = await self.rest.request("/v2/global", {})
-            data = json.loads(await response.text())
-            try:
-                result = data['data']['quotes']['USD']['total_market_cap']
-            except Exception as e:
-                _logger.error("Exception trying to get total market cap: " + str(e))
-        else:
-            response = await self.rest.request("/v2/ticker/" + coin, {})
-            data = json.loads(await response.text())
-            try:
-                result = float(data['data']['quotes']['USD']['market_cap'])
-            except Exception as e:
-                _logger.error("Exception trying to get coin %s market cap: %s" % (str(coin), str(e)))
-            
-        return result

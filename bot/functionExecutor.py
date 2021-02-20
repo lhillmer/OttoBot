@@ -1,5 +1,4 @@
 from customSearchEngine import CustomSearchEngine
-from cryptoConverter import CryptoConverter
 from stockInfo import StockInfo
 import dataContainers
 import globalSettings
@@ -75,7 +74,7 @@ class FunctionExecutor():
 
         try:
             type_id = parser.get_command_type_id('EQUALS')
-# TODO bad hardcoded check...but i'm leaving it for now because *fast*
+            # TODO bad hardcoded check...but i'm leaving it for now because *fast*
             if len(split[2]) > 256:
                 raise Exception('Length must be shorter than 256 character')
             newCommand = dataContainers.Command([-1, split[1], True, False, True, type_id])
@@ -91,7 +90,7 @@ class FunctionExecutor():
 
 
     async def create_delayed_command(self, request_id, response_id, message, bot, parser, web):
-        split = message.content.split(" ", 3)
+        split = message.content.split(" ", 2)
         result = "Roger roger"
 
         try:
@@ -110,6 +109,8 @@ class FunctionExecutor():
             result += " - " + str(new_id)
         except Exception as e:
             result = "Failed to parse delayed response: " + str(e)
+            _logger.error("Failed to create delayed command: {}".format(e))
+            _logger.exception(e)
 
         return (result, False)
     
@@ -261,7 +262,7 @@ class FunctionExecutor():
 
     async def timing_queue(self, request_id, response_id, message, bot, parser, web):
         false_start = random.randint(1, 10)
-        if false_start <= 3:
+        if false_start <= 1:
             return (message.author.mention + " TIMING!!!!!!!!!!!!\n\n\nWait no...", False)
         minTime = 0
         maxTime = 10520000
@@ -282,72 +283,20 @@ class FunctionExecutor():
         else:
             return ("Couldn't find server id? I don't really support PMs", False)
 
-    async def convert_money(self, request_id, response_id, message, bot, parser, web):
+    async def crypto_data(self, request_id, response_id, message, bot, parser, web):
         split = message.content.split(" ")
-        result = ""
-        if len(split) < 4:
-            result = parser.prefix + "convertHelp"
+        symbol = split[1]
+        result = "Crypto Data ({}):\n".format(symbol)
+        try:
+            symbol_data = await bot.crypto.get_info(symbol)
+        except Exception as e:
+            symbol_data = str(e)
+
+        if isinstance(symbol_data, dict):
+            prefix_len = max([len(x) for x in symbol_data])
+            result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
         else:
-            try:
-                val = float(split[1])
-                from_symbol = split[2].upper()
-                to_symbol = split[3].upper()
-
-                crypto = CryptoConverter(web)
-
-                if not self.crypto_symbols:
-                    _logger.info('populating symbols in convert_money')
-                    self.crypto_symbols = await crypto.get_symbols()
-                    _logger.info('done populating')
-
-                if from_symbol not in self.crypto_symbols:
-                    result = "I do not recognize base type: {}\n(USD not a valid base type)".format(from_symbol)
-                elif to_symbol not in self.crypto_symbols and to_symbol != 'USD':
-                    result = "I do not recognize target type: {}".format(to_symbol)
-
-                if result:
-                    return (result, True)
-
-                result = message.author.mention + ", you have "
-                converted = await crypto.convert(self.crypto_symbols[from_symbol], to_symbol)
-                if converted:
-                    calculated = val * converted
-                    result += "{:,f}".format(calculated) + " in " + to_symbol
-                else:
-                    result = "Something went wrong :("
-
-            except ValueError as e:
-                _logger.error('something happened man: {}'.format(e))
-                result = "Could not parse value to convert. Please use decimal notation"
-            except Exception as e:
-                _logger.error("convert_money exception: " + str(e))
-                result = ":robot: ERROR: " + str(e)
-        return (result, True)
-    
-    async def crypto_market_cap(self, request_id, response_id, message, bot, parser, web):
-        split = message.content.split(" ")
-        result = "Total market cap: "
-        coin = None
-        crypto = CryptoConverter(web)
-
-        if len(split) > 1:
-            coin = split[1].upper()
-
-            if not self.crypto_symbols:
-                self.crypto_symbols = await crypto.get_symbols()
-
-            if coin in self.crypto_symbols:
-                result = coin + " market cap: "
-                coin = self.crypto_symbols[coin]
-            else:
-                return ("Invalid coin name: '%s'" % coin, True)
-            
-        market_cap = await crypto.market_cap(coin)
-        
-        if market_cap == 0:
-            result = "An error occurred getting market cap. Please check the logs"
-        else:
-            result += "{:,.2f}".format(market_cap)
+            result = "An error occurred getting crypto data: {}".format(symbol_data)
         
         return (result, True)
     
@@ -360,7 +309,7 @@ class FunctionExecutor():
         symbol = None
         symbol_data = None
         error_info = None
-        stock_info = StockInfo(web)
+        stock_info = bot.get_stock_info_object(web)
 
         if len(split) > 1:
             symbol = split[1].upper()
@@ -392,12 +341,11 @@ class FunctionExecutor():
                     symbol_data = await stock_info.moving_average(symbol, duration, debug)
             except Exception as e:
                 error_info = str(e)
-        if symbol_data != None:
+        if isinstance(symbol_data, dict):
             prefix_len = max([len(x) for x in symbol_data])
-            # skip the first 3 characters of the key, because they *should* be '#. '
             result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
         else:
-            result = "An error occurred getting stock data."
+            result = "An error occurred getting stock data: {}".format(symbol_data)
             
         if error_info is not None:
             result = error_info

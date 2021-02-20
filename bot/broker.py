@@ -290,7 +290,10 @@ class OttoBroker():
 
     async def _handle_balance(self, command_args, message_author):
         try:
-            user = self._get_user(message_author.id)
+            if len(command_args) == 2:
+                user = self._get_user(message_author.id)
+            else:
+                user = self._get_user(command_args[2])
 
             errors = []
 
@@ -305,10 +308,10 @@ class OttoBroker():
             liabilities_orig_total = Decimal(0)
             liability_lines = []
 
-            for stock in user['longs']:
-                count = sum([x['count'] for x in user['longs'][stock]['stocks']])
-                cur_purchase_stock = sum([Decimal(x['purchase_cost']) * x['count'] for x in user['longs'][stock]['stocks']])
-                full_stock_value = Decimal(user['longs'][stock]['total_value'])
+            for stock in user['holdings']:
+                count = sum([x['count'] for x in user['holdings'][stock]['stocks']])
+                cur_purchase_stock = sum([Decimal(x['purchase_cost']) * x['count'] for x in user['holdings'][stock]['stocks']])
+                full_stock_value = Decimal(user['holdings'][stock]['total_value'])
                 assets_orig_total += cur_purchase_stock
 
                 asset_lines.append([
@@ -470,12 +473,16 @@ class OttoBroker():
             except Exception as e:
                 return ('Operation failed: {}'.format(e), False)
         else:
+            if command == 'balance.':
+                return ('I bet you meant \'balance\' :kappa:', False)
             return ('Did not recognize command: ' + command, False)
 
     async def check_for_tips(self, message):
-        if message.author.id == self._tip_verifier:
+        author_id = str(message.author.id)
+        if author_id == self._tip_verifier:
             # if we have a message from the tip verifying user (mimibot)
             # then try to parse out whether they're reporting a tip. and if so, was it to ottobot?
+            _logger.info('found a message from the tip verifier')
             try:
                 if message.content.startswith('Tip completed.'):
                     tip_info = message.content.split('{')[1].strip('}')
