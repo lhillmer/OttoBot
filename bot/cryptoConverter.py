@@ -17,7 +17,7 @@ class CryptoConverter():
         try:
             main_data = parsed_response['data'][crypto_symbol]
             result = {
-                "Price": StockInfo.decimalize_string(str(main_data['quote']['USD']['price'])),
+                "Price": StockInfo.decimalize_string(str(main_data['quote']['USD']['price']), post_decimal_digits=4),
                 "24h % Change": main_data['quote']['USD']['percent_change_24h'],
                 "Marketcap": StockInfo.get_wordy_num(main_data['quote']['USD']['market_cap']),
             }

@@ -44,10 +44,10 @@ class StockInfo():
         return (time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16
     
     @staticmethod
-    def decimalize_string(num_str):
+    def decimalize_string(num_str, post_decimal_digits=2):
         if '.' in num_str:
             dot_pos = num_str.index('.')
-            num_str = num_str[0:dot_pos + 3]
+            num_str = num_str[0:dot_pos + post_decimal_digits + 1]
         return num_str
     
     @staticmethod
