@@ -258,6 +258,8 @@ class StockInfo():
                     if '.' in change_percent:
                         dot_pos = index('.')
                         change_percent = change_percent[0:dot_pos + 3]
+                    else:
+                        change_percent = "bwuh"
                 except:
                     pass
 
@@ -269,8 +271,8 @@ class StockInfo():
                     self.low_key: data.get('low', 'ERROR'),
                     self.change_percent_key: change_percent,
                     self.pe_ratio_key: data.get('peRatio', 'ERROR'),
-                    self.latest_volume_key: data.get('latestVolume', 'ERROR'),
-                    self.average_volume_key: data.get('avgTotalVolume', 'ERROR'),
+                    self.latest_volume_key: self.get_wordy_num(data.get('latestVolume', 'ERROR')),
+                    self.average_volume_key: self.get_wordy_num(data.get('avgTotalVolume', 'ERROR')),
                 }
                 using_close = False
                 if data['latestSource'] == 'Close':
