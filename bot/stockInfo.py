@@ -255,13 +255,9 @@ class StockInfo():
                 change_percent = 'ERROR'
                 try:
                     change_percent = str(float(data.get('changePercent', '0')) * 100)
-                    _logger.info("doing a thing with: ".format(change_percent))
                     if '.' in change_percent:
-                        dot_pos = index('.')
-                        _logger.info("index of . in {} is {}".format(dot_pos, change_percent))
+                        dot_pos = change_percent.index('.')
                         change_percent = change_percent[0:dot_pos + 3]
-                    else:
-                        change_percent = "bwuh"
                 except:
                     pass
 
