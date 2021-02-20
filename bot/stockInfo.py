@@ -44,6 +44,12 @@ class StockInfo():
         return (time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16
     
     @staticmethod
+    def decimalize_string(num_str):
+        if '.' in num_str:
+            dot_pos = num_str.index('.')
+            num_str = num_str[0:dot_pos + 3]
+    
+    @staticmethod
     def get_wordy_num(num):
         result = str(num)
         words = ["", "Thousand", "Million", "Billion", "Trillion "]
@@ -254,10 +260,7 @@ class StockInfo():
                 
                 change_percent = 'ERROR'
                 try:
-                    change_percent = str(float(data.get('changePercent', '0')) * 100)
-                    if '.' in change_percent:
-                        dot_pos = change_percent.index('.')
-                        change_percent = change_percent[0:dot_pos + 3]
+                    change_percent = self.decimalize_string(str(float(data.get('changePercent', '0')) * 100))
                 except:
                     pass
 
