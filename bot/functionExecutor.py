@@ -311,7 +311,6 @@ class FunctionExecutor():
         result = "Stock Data (%s, %s):\n"
         symbol = None
         symbol_data = None
-        error_info = None
         stock_info = bot.get_stock_info_object(web)
 
         if len(split) > 1:
@@ -351,8 +350,5 @@ class FunctionExecutor():
         else:
             result += symbol_data
             
-        if error_info is not None:
-            result = error_info
-        
         return (result, True)
         
