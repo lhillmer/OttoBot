@@ -57,7 +57,7 @@ class StockInfo():
         _logger.info('letsa go: {} and {}'.format(raw_data.keys(), order))
         if order is not None:
             for field in order:
-                finished_field.append(field)
+                finished_fields.append(field)
                 result.append("`" + str(field).ljust(prefix_len) + ": " + str(raw_data[field]) + "`")
         
         _logger.info('ordered result: {}'.format(result))
