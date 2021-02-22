@@ -312,7 +312,12 @@ class StockInfo():
                 self.error_key: str(e)
             }
 
-        _logger.info('padding/ordering, to return: {}'.format(result))
-        final = self.pad_fields(result, order=self.live_order)
-        _logger.info('now, to return: {}'.format(final))
+        try:
+            _logger.info('padding/ordering, to return: {}'.format(result))
+            final = self.pad_fields(result, order=self.live_order)
+            _logger.info('now, to return: {}'.format(final))
+        except Exception as e:
+            _logger.error("whoaaaaa buddy")
+            _logger.exception(e)
+
         return final
