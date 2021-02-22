@@ -309,4 +309,7 @@ class StockInfo():
                 self.error_key: str(e)
             }
 
-        return self.pad_fields(result, order=self.live_order)
+        _logger.info('padding/ordering, to return: {}'.format(result))
+        final = self.pad_fields(result, order=self.live_order)
+        _logger.info('now, to return: {}'.format(final))
+        return final
