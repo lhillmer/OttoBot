@@ -33,12 +33,38 @@ class StockInfo():
         self.change_percent_key = 'Change %'
         self.latest_volume_key = 'LatestVolume'
         self.average_volume_key = 'AverageVolume'
+        self.live_order = [
+            self.company_name_key,
+            self.market_cap_key,
+            self.pe_ratio_key,
+            self.average_volume_key,
+            self.change_percent_key,
+            self.latest_source_key,
+            self.latest_price_key
+        ]
 
     @staticmethod
     def is_market_live(time=None):
         if time is None:
             time = datetime.datetime.now(pytz.timezone('EST5EDT'))
         return (time.hour > 9 or (time.hour == 9 and time.minute >= 30)) and time.hour < 16
+    
+    @staticmethod
+    def pad_fields(raw_data, order=None):
+        prefix_len = max([len(x) for x in raw_data])
+        finished_fields = []
+        result = []
+        if order is not None:
+            for field in order:
+                finished_field.append(field)
+                result.append("`" + str(field).ljust(prefix_len) + ": " + str(raw_data[field]) + "`")
+        
+        for remaining in raw_data:
+            if remaining in finished_fields:
+                continue
+            result.append("`" + str(remaining).ljust(prefix_len) + ": " + str(raw_data[remaining]) + "`")
+        
+        return '\n'.join(result)
     
     @staticmethod
     def decimalize_string(num_str, post_decimal_digits=2):
@@ -283,4 +309,4 @@ class StockInfo():
                 self.error_key: str(e)
             }
 
-        return result
+        return self.pad_fields(result, order=self.live_order)

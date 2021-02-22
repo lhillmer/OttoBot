@@ -348,7 +348,7 @@ class FunctionExecutor():
             prefix_len = max([len(x) for x in symbol_data])
             result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
         else:
-            result = "An error occurred getting stock data: {}".format(symbol_data)
+            result += symbol_data
             
         if error_info is not None:
             result = error_info
