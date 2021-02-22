@@ -17,10 +17,8 @@ class StockInfo():
         self.error_key = 'Error'
         self.open_key = 'Open'
         self.open_dt_key = 'Open (Time)'
-        self.close_key = 'Close'
-        self.close_dt_key = 'Close (Time)'
-        self.live_key = 'Live'
-        self.live_dt_key = 'Live (Time)'
+        self.latest_price_key = 'LatestPrice'
+        self.latest_source_key = 'LatestSource'
         self.average_key = 'Average'
         self.debug_dt_key = 'OttoTime'
         self.high_key = 'High'
@@ -29,7 +27,6 @@ class StockInfo():
         self.duration_key = 'Duration'
         self.endpoint_key = 'Endpoint'
         self.market_cap_key = 'MarketCap'
-        self.latest_source_key = 'LatestSource'
         self.base_market_cap_key = 'BaseMarketCap'
         self.company_name_key = 'CompanyName'
         self.pe_ratio_key = 'PE Ratio'
@@ -52,6 +49,8 @@ class StockInfo():
     
     @staticmethod
     def get_wordy_num(num):
+        if num is None:
+            return str(None)
         result = str(num)
         words = ["", "Thousand", "Million", "Billion", "Trillion "]
 
@@ -275,22 +274,14 @@ class StockInfo():
                     self.pe_ratio_key: data.get('peRatio', 'ERROR'),
                     self.latest_volume_key: self.get_wordy_num(data.get('latestVolume', 'ERROR')),
                     self.average_volume_key: self.get_wordy_num(data.get('avgTotalVolume', 'ERROR')),
+                    self.latest_source_key: data.get('latestSource', 'ERROR'),
+                    self.latest_price_key: data.get('latestPrice', 'ERROR')
                 }
                 using_close = False
-                if data['latestSource'] == 'Close':
-                    result[self.close_key] = data['close']
-                    using_close = True
-                else:
-                    result[self.live_key] = data['latestPrice']
                 if debug:
-                    result[self.latest_source_key] = data['latestSource']
                     result[self.base_market_cap_key] = data['marketCap']
                     result[self.debug_dt_key] = datetime.datetime.now().strftime(self.date_time_format)
                     result[self.open_dt_key] = datetime.datetime.fromtimestamp(data['openTime']/1000.0).astimezone(pytz.timezone('EST5EDT')).strftime(self.date_time_format)
-                    if using_close:
-                        result[self.close_dt_key] = datetime.datetime.fromtimestamp(data['closeTime']/1000.0).astimezone(pytz.timezone('EST5EDT')).strftime(self.date_time_format)
-                    else:
-                        result[self.live_dt_key] = datetime.datetime.fromtimestamp(data['latestUpdate']/1000.0).astimezone(pytz.timezone('EST5EDT')).strftime(self.date_time_format)
         except Exception as e:
             result = {
                 self.error_key: str(e)
