@@ -345,6 +345,7 @@ class FunctionExecutor():
             except Exception as e:
                 error_info = str(e)
         if isinstance(symbol_data, dict):
+            _logger.info('something is weird here: {}'.format(symbol_data))
             prefix_len = max([len(x) for x in symbol_data])
             result += '\n'.join(["`" + str(x).ljust(prefix_len) + ": " + str(symbol_data[x]) + "`" for x in symbol_data])
         else:
