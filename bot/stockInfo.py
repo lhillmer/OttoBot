@@ -266,13 +266,9 @@ class StockInfo():
 
                 result = {
                     self.company_name_key: data.get('companyName', 'ERROR'),
-                    self.open_key: data.get('open', 'ERROR'),
                     self.market_cap_key: market_cap,
-                    self.high_key: data.get('high', 'ERROR'),
-                    self.low_key: data.get('low', 'ERROR'),
                     self.change_percent_key: change_percent,
                     self.pe_ratio_key: data.get('peRatio', 'ERROR'),
-                    self.latest_volume_key: self.get_wordy_num(data.get('latestVolume', 'ERROR')),
                     self.average_volume_key: self.get_wordy_num(data.get('avgTotalVolume', 'ERROR')),
                     self.latest_source_key: data.get('latestSource', 'ERROR'),
                     self.latest_price_key: data.get('latestPrice', 'ERROR')
