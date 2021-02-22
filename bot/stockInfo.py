@@ -59,11 +59,13 @@ class StockInfo():
                 finished_field.append(field)
                 result.append("`" + str(field).ljust(prefix_len) + ": " + str(raw_data[field]) + "`")
         
+        _logger.info('ordered result: {}'.format(result))
         for remaining in raw_data:
             if remaining in finished_fields:
                 continue
             result.append("`" + str(remaining).ljust(prefix_len) + ": " + str(raw_data[remaining]) + "`")
-        
+
+        _logger.info('remaining result: {}'.format(result))
         return '\n'.join(result)
     
     @staticmethod
