@@ -343,7 +343,7 @@ class FunctionExecutor():
                 elif timing == 'moving_average':
                     symbol_data = await stock_info.moving_average(symbol, duration, debug)
             except Exception as e:
-                error_info = str(e)
+                result = str(e)
         if isinstance(symbol_data, dict):
             _logger.info('something is weird here: {}'.format(symbol_data))
             prefix_len = max([len(x) for x in symbol_data])
