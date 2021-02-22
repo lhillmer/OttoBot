@@ -54,7 +54,7 @@ class StockInfo():
         prefix_len = max([len(x) for x in raw_data])
         finished_fields = []
         result = []
-        _logger.info('letsa go: {} and {}}'.format(raw_data.keys(), order))
+        _logger.info('letsa go: {} and {}'.format(raw_data.keys(), order))
         if order is not None:
             for field in order:
                 finished_field.append(field)
